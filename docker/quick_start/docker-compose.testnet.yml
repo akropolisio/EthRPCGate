@@ -1,40 +1,45 @@
 version: "3.3"
 
 networks:
-  qtumd_testnet_network:
+  kaond_testnet_network:
 volumes:
-  qtumd_testnet_volume:
+  kaond_testnet_volume:
 
 services:
-  janus_testnet:
-    image: qtum/janus:dev
-    container_name: janus_testchain
+  ethrpcgate_testnet:
+    image: kaon/eth-rpc-gate:dev
+    container_name: ethrpcgate_testchain
     build: 
         context: ../../
         cache_from:
           - golang:1.18-alpine
     ports:
-        - "23889:23889"
+        - "25996:25996"
     environment: 
-        - QTUM_RPC=http://qtum:testpasswd@qtum_testnet:3889
+        - KAON_RPC=http://${RPC_USER}:${RPC_PASSWORD}@kaon_testnet:51474
         - COMPOSE_PROJECT_NAME=testnet
     volumes:
-        - ../standalone/myaccounts.txt:$GOPATH/github.com/qtumproject/janus/myaccounts.txt
+        - ../standalone/myaccounts.txt:$GOPATH/github.com/kaonone/eth-rpc-gate/myaccounts.txt
         - ../../https:/https
         - ../../logs:/logs
     depends_on:
-      - qtum_testnet
-    command: --bind 0.0.0.0 --port 23889 --ignoreTransactions --accounts $GOPATH/github.com/qtumproject/janus/myaccounts.txt --dev --https-key /https/key.pem --https-cert /https/cert.pem
+      - kaon_testnet
+    command: --bind 0.0.0.0 --port 25996 --ignoreTransactions --accounts $GOPATH/github.com/kaonone/eth-rpc-gate/myaccounts.txt --dev --https-key /https/key.pem --https-cert /https/cert.pem
     networks:
-      - qtumd_testnet_network
+      - kaond_testnet_network
 
-  qtum_testnet:
+  kaon_testnet:
     ports:
-      - "3889:3889"
-    image: qtum/qtum
-    container_name: qtum_testnet
-    command: qtumd -testnet -txindex -addrindex=1 -rpcbind=0.0.0.0:3889 -rpcallowip=0.0.0.0/0 -logevents -rpcuser=qtum -rpcpassword=testpasswd -deprecatedrpc=accounts -printtoconsole
+      - "51474:51474"
+    image: kaon/kaon
+    container_name: kaon_testnet
+    environment: 
+        - COMPOSE_PROJECT_NAME=testnet
+        - RPC_USER=${RPC_USER}
+        - RPC_PASSWORD=${RPC_PASSWORD}
+    command: ["sh", "-c", "envsubst < /root/.Kaon/kaon.conf.testnet.template > /root/.Kaon/kaon.conf && kaond"]
     volumes:
-      - qtumd_testnet_volume:/root/.qtum
+      - kaond_testnet_volume:/root/.Kaon
+      - ./kaon.conf.testnet.template:/root/.Kaon/kaon.conf.testnet.template
     networks:
-      - qtumd_testnet_network
+      - kaond_testnet_network

@@ -17,43 +17,45 @@ repeat_until_success () {
     echo Command finished successfully
 }
 
-# Qtum v22.1 no longer auto creates a default wallet, we need to create one to import keys and such
-RANDOM=$(date +%s)
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd createwallet "createdWallet"$(( $RANDOM % 129 ))
-
 #import private keys and then prefund them
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd importprivkey "cMbgxCJrTYUqgcmiC1berh5DFrtY1KeU4PXZ6NZxgenniF1mXCRk" address1 # addr=qUbxboqjBRp96j3La8D1RYkyqx5uQbJPoW hdkeypath=m/88'/0'/1'
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd importprivkey "cRcG1jizfBzHxfwu68aMjhy78CpnzD9gJYZ5ggDbzfYD3EQfGUDZ" address2 # addr=qLn9vqbr2Gx3TsVR9QyTVB5mrMoh4x43Uf hdkeypath=m/88'/0'/2'
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd importprivkey "cV79qBoCSA2NDrJz8S3T7J8f3zgkGfg4ua4hRRXfhbnq5VhXkukT" address3 # addr=qTCCy8qy7pW94EApdoBjYc1vQ2w68UnXPi
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd importprivkey "cV93kaaV8hvNqZ711s2z9jVWLYEtwwsVpyFeEZCP6otiZgrCTiEW" address4 # addr=qWMi6ne9mDQFatRGejxdDYVUV9rQVkAFGp
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd importprivkey "cVPHpTvmv3UjQsZfsMRrW5RrGCyTSAZ3MWs1f8R1VeKJSYxy5uac" address5 # addr=qLcshhsRS6HKeTKRYFdpXnGVZxw96QQcfm
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd importprivkey "cTs5NqY4Ko9o6FESHGBDEG77qqz9me7cyYCoinHcWEiqMZgLC6XY" address6 # addr=qW28njWueNpBXYWj2KDmtFG2gbLeALeHfV
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd importprivkey "YoBkvJXYcxihY3qYXZuh3ndN14hWmAPUU3qhFZw1Zbt9g85FjMCd" address2 # addr=auASFMxv45WgjCW6wkpDuHWjxXhzNA9mjP hdkeypath=m/88'/0'/2'
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd importprivkey "Yn3MpyMQzQR7osXkNyQ3DVNP6kwZGpmXhXzuuPGXZwyouhxmWxh7" address3 # addr=awQb8vf21idkFoZiYPA4hWgtuPyko2qUaR
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd importprivkey "YhrMRdEunTgoz4vs9RYc7Ui5yAYp2UmBeZsVfWHjifzVWeDQGVt7" address4 # addr=ar7PkgNdY1HkDtUo3D4GTsYrcqoHBJygNQ
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd importprivkey "YiaCnmCToCPUGgSrLxEiGVa297WiFGc5jrsUpy68BJiCe7Cym716" address5 # addr=b7CSynDNwb2LQcCWXs8Qn79LUkgMdsK61S
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd importprivkey "YifXHT9WJeP53jor88a6FYgxj3CDFjtkbYGb6tRHJK3UhdLye6m2" address6 # addr=ayHXgXugbHDDR8cBjX2ZVLfkGE78QTeW2Z
 
 echo Finished importing accounts
 echo Seeding accounts
-echo Seeding qcavTSEVe31NLdXyfq925GzGp8yN5QnS6a
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd generatetoaddress 2 qcavTSEVe31NLdXyfq925GzGp8yN5QnS6a
-qtum-cli -rpcuser=qtum -rpcpassword=testpasswd generatetoaddress 2 qa1W7VnwtJPoFDoNjxxGdDHBtsRKDpjW8c
-qtum-cli -rpcuser=qtum -rpcpassword=testpasswd generatetoaddress 1000 qaofg5zZVyvPmWgGL6YdVAyRTKWd3MjZ4A
+echo Seeding ucavTSEVe31NLdXyfq925GzGp8yN5QnS6a
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd generatetoaddress 2 ucavTSEVe31NLdXyfq925GzGp8yN5QnS6a
+kaon-cli -rpcuser=kaon -rpcpassword=testpasswd generatetoaddress 2 ua1W7VnwtJPoFDoNjxxGdDHBtsRKDpjW8c
+kaon-cli -rpcuser=kaon -rpcpassword=testpasswd generatetoaddress 1000 uaofg5zZVyvPmWgGL6YdVAyRTKWd3MjZ4A
+
 # address1
-echo Seeding qUbxboqjBRp96j3La8D1RYkyqx5uQbJPoW
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd generatetoaddress 1000 qUbxboqjBRp96j3La8D1RYkyqx5uQbJPoW
+# hex addr 0x1CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead (ar2SzdHghSgeacypPn7zfDe3qfKAEwimus) has only MM private key: cbc9b23fc49066bbe19e599364035b9e8d11bb51e0f1fb56b14f50564bfd15e9
+# there is no private key for this addr in KAON format
+echo Seeding ar2SzdHghSgeacypPn7zfDe3qfKAEwimus
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd generatetoaddress 1000 ar2SzdHghSgeacypPn7zfDe3qfKAEwimus
+
 # address2
-echo Seeding qLn9vqbr2Gx3TsVR9QyTVB5mrMoh4x43Uf
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd generatetoaddress 1000 qLn9vqbr2Gx3TsVR9QyTVB5mrMoh4x43Uf
+# hex addr 0x3f501c368cb9ddb5f27ed72ac0d602724adfa175 (auASFMxv45WgjCW6wkpDuHWjxXhzNA9mjP) has only KAON private key: YoBkvJXYcxihY3qYXZuh3ndN14hWmAPUU3qhFZw1Zbt9g85FjMCd
+# there is no private key for this addr in Eth format
+echo Seeding auASFMxv45WgjCW6wkpDuHWjxXhzNA9mjP
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd generatetoaddress 1000 auASFMxv45WgjCW6wkpDuHWjxXhzNA9mjP
 # address3
-echo Seeding qTCCy8qy7pW94EApdoBjYc1vQ2w68UnXPi
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd generatetoaddress 500 qTCCy8qy7pW94EApdoBjYc1vQ2w68UnXPi
+echo Seeding awQb8vf21idkFoZiYPA4hWgtuPyko2qUaR
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd generatetoaddress 500 awQb8vf21idkFoZiYPA4hWgtuPyko2qUaR
 # address4
-echo Seeding qWMi6ne9mDQFatRGejxdDYVUV9rQVkAFGp
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd generatetoaddress 250 qWMi6ne9mDQFatRGejxdDYVUV9rQVkAFGp
+echo Seeding ar7PkgNdY1HkDtUo3D4GTsYrcqoHBJygNQ
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd generatetoaddress 250 ar7PkgNdY1HkDtUo3D4GTsYrcqoHBJygNQ
 # address5
-echo Seeding qLcshhsRS6HKeTKRYFdpXnGVZxw96QQcfm
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd generatetoaddress 100 qLcshhsRS6HKeTKRYFdpXnGVZxw96QQcfm
+echo Seeding b7CSynDNwb2LQcCWXs8Qn79LUkgMdsK61S
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd generatetoaddress 100 b7CSynDNwb2LQcCWXs8Qn79LUkgMdsK61S
 # address6
-echo Seeding qW28njWueNpBXYWj2KDmtFG2gbLeALeHfV
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd generatetoaddress 100 qW28njWueNpBXYWj2KDmtFG2gbLeALeHfV
+echo Seeding ayHXgXugbHDDR8cBjX2ZVLfkGE78QTeW2Z
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd generatetoaddress 100 ayHXgXugbHDDR8cBjX2ZVLfkGE78QTeW2Z
 # playground pet shop dapp
-echo Seeding 0xCca81b02942D8079A871e02BA03A3A4a8D7740d2
-repeat_until_success qtum-cli -rpcuser=qtum -rpcpassword=testpasswd generatetoaddress 2 qcDWPLgdY9pTv3cKLkaMPvqjukURH3Qudy
+# PK KAON: Yjf1pkLANZcMQd81HyyqV4BHBMwMLoqZzZ9W4YfGxtqEbinL5kQq
+echo Seeding 0x270e4f191c2f13cfaea6c35edfe4020b433632d6
+repeat_until_success kaon-cli -rpcuser=kaon -rpcpassword=testpasswd generatetoaddress 2 arxBCorh4mfs32wDvVpCx3fBeRjnTgMKNV
 echo Finished importing and seeding accounts
