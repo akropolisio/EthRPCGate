@@ -1,47 +1,51 @@
-[![Github Build Status](https://github.com/qtumproject/janus/workflows/Openzeppelin/badge.svg)](https://github.com/qtumproject/janus/actions)
-[![Github Build Status](https://github.com/qtumproject/janus/workflows/Unit%20tests/badge.svg)](https://github.com/qtumproject/janus/actions)
+[![Github Build Status](https://github.com/kaonone/eth-rpc-gate/workflows/Openzeppelin/badge.svg)](https://github.com/kaonone/eth-rpc-gate/actions)
+[![Github Build Status](https://github.com/kaonone/eth-rpc-gate/workflows/Unit%20tests/badge.svg)](https://github.com/kaonone/eth-rpc-gate/actions)
 
-# Qtum adapter to Ethereum JSON RPC
-Janus is a web3 proxy adapter that can be used as a web3 provider to interact with Qtum. It supports HTTP(s) and websockets and the current version enables self hosting of keys.
+# Kaon adapter to Ethereum JSON RPC
+eth-rpc-gate is a web3 proxy adapter that can be used as a web3 provider to interact with Kaon. It supports HTTP(s) and websockets and the current version enables self hosting of keys.
 
 # Table of Contents
 
-- [Quick start](#quick-start)
-- [Public instances](#public-instances)
-- [Requirements](#requirements)
-- [Installation](#installation)
-  - [SSL](#ssl)
-  - [Self-signed SSL](#self-signed-ssl)
-- [How to use Janus as a Web3 provider](#how-to-use-janus-as-a-web3-provider)
-- [How to add Janus to Metamask](#how-to-add-janus-to-metamask)
-- [Truffle support](#truffle-support)
-- [Ethers support](#ethers-support)
-- [Supported ETH methods](#supported-eth-methods)
-- [Websocket ETH methods](#websocket-eth-methods-endpoint-at-)
-- [Janus methods](#janus-methods)
-- [Development methods](#development-methods)
-- [Health checks](#health-checks)
-- [Deploying and Interacting with a contract using RPC calls](#deploying-and-interacting-with-a-contract-using-rpc-calls)
-  - [Assumption parameters](#assumption-parameters)
-  - [Deploy the contract](#deploy-the-contract)
-  - [Get the transaction using the hash from previous the result](#get-the-transaction-using-the-hash-from-previous-the-result)
-  - [Get the transaction receipt](#get-the-transaction-receipt)
-  - [Calling the set method](#calling-the-set-method)
-  - [Calling the get method](#calling-the-get-method)
-- [Differences between EVM chains](DIFFERENCES.md)
+- [Kaon adapter to Ethereum JSON RPC](#kaon-adapter-to-ethereum-json-rpc)
+- [Table of Contents](#table-of-contents)
+  - [Quick start](#quick-start)
+    - [Public instances](#public-instances)
+      - [You can use public instances if you don't need to use eth\_sendTransaction or eth\_accounts](#you-can-use-public-instances-if-you-dont-need-to-use-eth_sendtransaction-or-eth_accounts)
+  - [Requirements](#requirements)
+  - [Installation](#installation)
+    - [SSL](#ssl)
+    - [Self-signed SSL](#self-signed-ssl)
+  - [How to use eth-rpc-gate as a Web3 provider](#how-to-use-eth-rpc-gate-as-a-web3-provider)
+  - [How to add eth-rpc-gate to Metamask](#how-to-add-eth-rpc-gate-to-metamask)
+  - [Truffle support](#truffle-support)
+  - [Ethers support](#ethers-support)
+  - [Supported ETH methods](#supported-eth-methods)
+  - [Websocket ETH methods (endpoint at /)](#websocket-eth-methods-endpoint-at-)
+  - [eth-rpc-gate methods](#eth-rpc-gate-methods)
+  - [Development methods](#development-methods)
+  - [Health checks](#health-checks)
+  - [Deploying and Interacting with a contract using RPC calls](#deploying-and-interacting-with-a-contract-using-rpc-calls)
+    - [Assumption parameters](#assumption-parameters)
+    - [Deploy the contract](#deploy-the-contract)
+    - [Get the transaction using the hash from previous the result](#get-the-transaction-using-the-hash-from-previous-the-result)
+    - [Get the transaction receipt](#get-the-transaction-receipt)
+    - [Calling the set method](#calling-the-set-method)
+    - [Calling the get method](#calling-the-get-method)
+    - [EVM Versions](#evm-versions)
+  - [Future work](#future-work)
 
 ## Quick start
 ### Public instances
 #### You can use public instances if you don't need to use eth_sendTransaction or eth_accounts
-Mainnet: https://janus.qiswap.com/api/
+Mainnet: https://mainnet.kaon.one/
 
-Testnet: https://testnet-janus.qiswap.com/api/
+Testnet: https://testnet.kaon.one/
 
 Regtest: run it locally with ```make quick-start-regtest```
 
-If you need to use eth_sendTransaction, you are going to have to run your own instance pointing to your own QTUM instance
+If you need to use eth_sendTransaction, you are going to have to run your own instance pointing to your own Kaon instance
 
-See [(Beta) QTUM ethers-js library](https://github.com/earlgreytech/qtum-ethers) to generate transactions in the browser so you can use public instances
+Standard eth_sendRawTransaction will work as expected.
 
 See [Differences between EVM chains](#differences-between-evm-chains) below
 
@@ -57,37 +61,37 @@ See [Differences between EVM chains](#differences-between-evm-chains) below
 $ sudo apt install make git golang docker-compose
 # Configure GOPATH if not configured
 $ export GOPATH=`go env GOPATH`
-$ mkdir -p $GOPATH/src/github.com/qtumproject && \
-  cd $GOPATH/src/github.com/qtumproject && \
-  git clone https://github.com/qtumproject/janus
-$ cd $GOPATH/src/github.com/qtumproject/janus
+$ mkdir -p $GOPATH/src/github.com/kaonone && \
+  cd $GOPATH/src/github.com/kaonone && \
+  git clone https://github.com/kaonone/eth-rpc-gate
+$ cd $GOPATH/src/github.com/kaonone/eth-rpc-gate
 # Generate self-signed SSL cert (optional)
-# If you do this step, Janus will respond in SSL
-# otherwise, Janus will respond unencrypted
+# If you do this step, eth-rpc-gate will respond in SSL
+# otherwise, eth-rpc-gate will respond unencrypted
 $ make docker-configure-https
 # Pick a network to quick-start with
 $ make quick-start-regtest
 $ make quick-start-testnet
 $ make quick-start-mainnet
 ```
-This will build the docker image for the local version of Janus as well as spin up two containers:
+This will build the docker image for the local version of eth-rpc-gate as well as spin up two containers:
 
--   One named `janus` running on port 23889
+-   One named `ethrpcgate` running on port 25996
     
--   Another one named `qtum` running on port 3889
+-   Another one named `kaon` running on rpc port 51474
     
 
-`make quick-start` will also fund the tests accounts with QTUM in order for you to start testing and developing locally. Additionally, if you need or want to make changes and or additions to Janus, but don't want to go through the hassle of rebuilding the container, you can run the following command at the project root level:
+`make quick-start` will also fund the tests accounts with KAON in order for you to start testing and developing locally. Additionally, if you need or want to make changes and or additions to eth-rpc-gate, but don't want to go through the hassle of rebuilding the container, you can run the following command at the project root level:
 ```
-$ make run-janus
+$ make run-ethrpcgate
 # For https
-$ make docker-configure-https && make run-janus-https
+$ make docker-configure-https && make run-ethrpcgate-https
 ```
-Which will run the most current local version of Janus on port 23888, but without rebuilding the image or the local docker container.
+Which will run the most current local version of eth-rpc-gate on port 25996, but without rebuilding the image or the local docker container.
 
-Note that Janus will use the hex address for the test base58 Qtum addresses that belong the the local qtum node, for example:
-  - qUbxboqjBRp96j3La8D1RYkyqx5uQbJPoW (hex 0x7926223070547d2d15b2ef5e7383e541c338ffe9 )
-  - qLn9vqbr2Gx3TsVR9QyTVB5mrMoh4x43Uf (hex 0x2352be3db3177f0a07efbe6da5857615b8c9901d )
+Note that eth-rpc-gate will use the hex address for the test base58 Kaon addresses that belong the the local Kaon node, for example:
+  - ar2SzdHghSgeacypPn7zfDe3qfKAEwimus (hex 0x1CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead )
+  - auASFMxv45WgjCW6wkpDuHWjxXhzNA9mjP (hex 0x3f501c368cb9ddb5f27ed72ac0d602724adfa175 )
 
 ### SSL
 SSL keys and certificates go inside the https folder (mounted at `/https` in the container) and use `--https-key` and `--https-cert` parameters. If the specified files do not exist, it will fall back to http.
@@ -99,15 +103,15 @@ To generate self-signed certificates with docker for local development the follo
 $ make docker-configure-https
 ```
 
-## How to use Janus as a Web3 provider
+## How to use eth-rpc-gate as a Web3 provider
 
-Once Janus is successfully running, all one has to do is point your desired framework to Janus in order to use it as your web3 provider. Lets say you want to use truffle for example, in this case all you have to do is go to your truffle-config.js file and add janus as a network:
+Once eth-rpc-gate is successfully running, all one has to do is point your desired framework to eth-rpc-gate in order to use it as your web3 provider. Lets say you want to use truffle for example, in this case all you have to do is go to your truffle-config.js file and add ethrpcgate as a network:
 ```
 module.exports = {
   networks: {
-    janus: {
+    ethrpcgate: {
       host: "127.0.0.1",
-      port: 23889,
+      port: 25996,
       network_id: "*",
       gasPrice: "0x5d21dba000"
     },
@@ -117,24 +121,18 @@ module.exports = {
 }
 ```
 
-## How to add Janus to Metamask
+## How to add eth-rpc-gate to Metamask
 
-Getting Janus to work with Metamask requires two things
-- [Configuring Metamask to point to Janus](metamask)
-- Locally signing transactions with a Metamask fork
-  - [(Alpha) QTUM Metamask fork](https://github.com/earlgreytech/metamask-extension/releases)
+Getting eth-rpc-gate to work with Metamask requires just one thing:
+- [Configuring Metamask to point to eth-rpc-gate](metamask)
 
 ## Truffle support
 
-Hosting your own Janus and blockchain instance works similarly to geth and is supported
-
-Client side transaction signing is supported with [hdwallet-provider](https://www.npmjs.com/package/@qtumproject/hdwallet-provider) underneath it uses [qtum-ethers-wrapper](https://github.com/qtumproject/qtum-ethers) to construct raw transactions
-
-See [truffle unbox qtumproject/react-box](https://github.com/qtumproject/react-box) for an example truffle-config file
+Hosting your own eth-rpc-gate and blockchain instance works similarly to geth and so truffle is completely supported.
 
 ## Ethers support
 
-Ethers is supported, use [qtum-ethers-wrapper](https://github.com/qtumproject/qtum-ethers)
+Ethers is supported, please follow Kaon repository since fork of ethers with new chain ID will be published soon.
 
 ## Supported ETH methods
 
@@ -181,20 +179,20 @@ Ethers is supported, use [qtum-ethers-wrapper](https://github.com/qtumproject/qt
 -   [eth_subscribe](pkg/transformer/eth_subscribe.go) (only 'logs' for now)
 -   [eth_unsubscribe](pkg/transformer/eth_unsubscribe.go)
 
-## Janus methods
+## eth-rpc-gate methods
 
--   [qtum_getUTXOs](pkg/transformer/qtum_getUTXOs.go)
+-   [kaon_getUTXOs](pkg/transformer/kaon_getUTXOs.go)
 
 ## Development methods
 Use these to speed up development, but don't rely on them in your dapp
 
--   [dev_gethexaddress](https://docs.qtum.site/en/Qtum-RPC-API/#gethexaddress) Convert Qtum base58 address to hex
--   [dev_fromhexaddress](https://docs.qtum.site/en/Qtum-RPC-API/#fromhexaddress) Convert from hex to Qtum base58 address for the connected network (strip 0x prefix from address when calling this)
--   [dev_generatetoaddress](https://docs.qtum.site/en/Qtum-RPC-API/#generatetoaddress) Mines blocks in regtest (accepts hex/base58 addresses - keep in mind that to use these coins, you must mine 2000 blocks)
+-   [dev_gethexaddress](https://github.com/kaonone/kaoncore/blob/master/doc/JSON-RPC-interface.md#gethexaddress) Convert Kaon base58 address to hex
+-   [dev_fromhexaddress](https://github.com/kaonone/kaoncore/blob/master/doc/JSON-RPC-interface.md#fromhexaddress) Convert from hex to Kaon base58 address for the connected network (strip 0x prefix from address when calling this)
+-   [dev_generatetoaddress](https://github.com/kaonone/kaoncore/blob/master/doc/JSON-RPC-interface.md#generatetoaddress) Mines blocks in regtest (accepts hex/base58 addresses)
 
 ## Health checks
 
-There are two health check endpoints, `GET /live` and `GET /ready` they return 200 or 503 depending on health (if they can connect to qtumd)
+There are two health check endpoints, `GET /live` and `GET /ready` they return 200 or 503 depending on health (if they can connect to kaond)
 
 ## Deploying and Interacting with a contract using RPC calls
 
@@ -239,8 +237,8 @@ Binary:
 
 ```
 $ curl --header 'Content-Type: application/json' --data \
-     '{"id":"10","jsonrpc":"2.0","method":"eth_sendTransaction","params":[{"from":"0x7926223070547d2d15b2ef5e7383e541c338ffe9","gas":"0x6691b7","gasPrice":"0x5d21dba000","data":"0x608060405234801561001057600080fd5b506040516020806100f2833981016040525160005560bf806100336000396000f30060806040526004361060485763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166360fe47b18114604d5780636d4ce63c146064575b600080fd5b348015605857600080fd5b5060626004356088565b005b348015606f57600080fd5b506076608d565b60408051918252519081900360200190f35b600055565b600054905600a165627a7a7230582049a087087e1fc6da0b68ca259d45a2e369efcbb50e93f9b7fa3e198de6402b8100290000000000000000000000000000000000000000000000000000000000000001"}]}' \
-     'http://localhost:23889'
+     '{"id":"10","jsonrpc":"2.0","method":"eth_sendTransaction","params":[{"from":"0x1CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead","gas":"0x6691b7","gasPrice":"0x5d21dba000","data":"0x608060405234801561001057600080fd5b506040516020806100f2833981016040525160005560bf806100336000396000f30060806040526004361060485763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166360fe47b18114604d5780636d4ce63c146064575b600080fd5b348015605857600080fd5b5060626004356088565b005b348015606f57600080fd5b506076608d565b60408051918252519081900360200190f35b600055565b600054905600a165627a7a7230582049a087087e1fc6da0b68ca259d45a2e369efcbb50e93f9b7fa3e198de6402b8100290000000000000000000000000000000000000000000000000000000000000001"}]}' \
+     'http://localhost:25996'
 
 {
   "jsonrpc": "2.0",
@@ -254,7 +252,7 @@ $ curl --header 'Content-Type: application/json' --data \
 ```
 $ curl --header 'Content-Type: application/json' --data \
      '{"id":"10","jsonrpc":"2.0","method":"eth_getTransactionByHash","params":["0xa85cacc6143004139fc68808744ea6125ae984454e0ffa6072ac2f2debb0c2e6"]}' \
-     'localhost:23889'
+     'localhost:25996'
 
 {
   "jsonrpc":"2.0",
@@ -266,7 +264,7 @@ $ curl --header 'Content-Type: application/json' --data \
     "nonce":"0x0",
     "value":"0x0",
     "input":"0x00",
-    "from":"0x7926223070547d2d15b2ef5e7383e541c338ffe9",
+    "from":"0x1CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead",
     "to":"",
     "gas":"0x363639316237",
     "gasPrice":"0x5d21dba000"
@@ -280,7 +278,7 @@ $ curl --header 'Content-Type: application/json' --data \
 ```
 $ curl --header 'Content-Type: application/json' --data \
      '{"id":"10","jsonrpc":"2.0","method":"eth_getTransactionReceipt","params":["0x6da39dc909debf70a536bbc108e2218fd7bce23305ddc00284075df5dfccc21b"]}' \
-     'localhost:23889'
+     'localhost:25996'
 
 {
   "jsonrpc": "2.0",
@@ -288,7 +286,7 @@ $ curl --header 'Content-Type: application/json' --data \
     "transactionHash": "0xa85cacc6143004139fc68808744ea6125ae984454e0ffa6072ac2f2debb0c2e6",
     "transactionIndex": "0x5",
     "blockHash": "0x1e64595e724ea5161c0597d327072074940f519a6fb285ae60e73a4c996b47a4",
-    "from":"0x7926223070547d2d15b2ef5e7383e541c338ffe9"
+    "from":"0x1CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead"
     "blockNumber": "0xc9b5",
     "cumulativeGasUsed": "0x8c235",
     "gasUsed": "0x1c071",
@@ -307,8 +305,8 @@ the ABI code of set method with param '["2"]' is `60fe47b10000000000000000000000
 
 ```
 $ curl --header 'Content-Type: application/json' --data \
-     '{"id":"10","jsonrpc":"2.0","method":"eth_sendTransaction","params":[{"from":"0x7926223070547d2d15b2ef5e7383e541c338ffe9","gas":"0x6691b7","gasPrice":"0x5d21dba000","to":"0x1286595f8683ae074bc026cf0e587177b36842e2","data":"60fe47b10000000000000000000000000000000000000000000000000000000000000002"}]}' \
-     'localhost:23889'
+     '{"id":"10","jsonrpc":"2.0","method":"eth_sendTransaction","params":[{"from":"0x1CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead","gas":"0x6691b7","gasPrice":"0x5d21dba000","to":"0x1286595f8683ae074bc026cf0e587177b36842e2","data":"60fe47b10000000000000000000000000000000000000000000000000000000000000002"}]}' \
+     'localhost:25996'
 
 {
   "jsonrpc": "2.0",
@@ -323,8 +321,8 @@ get method's ABI code is `6d4ce63c`
 
 ```
 $ curl --header 'Content-Type: application/json' --data \
-     '{"id":"10","jsonrpc":"2.0","method":"eth_call","params":[{"from":"0x7926223070547d2d15b2ef5e7383e541c338ffe9","gas":"0x6691b7","gasPrice":"0x5d21dba000","to":"0x1286595f8683ae074bc026cf0e587177b36842e2","data":"6d4ce63c"},"latest"]}' \
-     'localhost:23889'
+     '{"id":"10","jsonrpc":"2.0","method":"eth_call","params":[{"from":"0x1CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead","gas":"0x6691b7","gasPrice":"0x5d21dba000","to":"0x1286595f8683ae074bc026cf0e587177b36842e2","data":"6d4ce63c"},"latest"]}' \
+     'localhost:25996'
 
 {
   "jsonrpc": "2.0",
@@ -333,8 +331,13 @@ $ curl --header 'Content-Type: application/json' --data \
 }
 ```
 
+### EVM Versions
+Currently KAON is operating under the Istanbul EVM, so Shanghai EVM may be incompatible since PISH0 is unsupported.
+If you are deploying using Remix, please keep in mind that you need to go to the Solidity Compiler panel, open Advanced Configurations section and pick Istanbul there.
+
 ## Future work
-- Transparently translate eth_sendRawTransaction from an EVM transaction to a QTUM transaction if the same key is hosted
-- Transparently serve blocks by their Ethereum block hash
-- Send all QTUM support via eth_sendTransaction
-- For eth_subscribe only the 'logs' type is supported at the moment
+- For eth_subscribe only the 'logs' type is supported at the moment,
+- Complete support debugging and tracing methods for blocks and transactions for all required mods,
+- Support of BRC20 and Ordinals transpiling,
+- Support of P2SH and other more complex vout signatures,
+- Complete support of WETH analogue in native tokens.
