@@ -1,8 +1,8 @@
 <template>
   <div class="hello">
     <div v-if="web3Detected">
-      <b-button v-if="qtumConnected">Connected to QTUM</b-button>
-      <b-button v-else-if="connected" v-on:click="connectToQtum()">Connect to QTUM</b-button>
+      <b-button v-if="kaonConnected">Connected to Kaon Network</b-button>
+      <b-button v-else-if="connected" v-on:click="connectToKAON()">Connect to Kaon Network</b-button>
       <b-button v-else v-on:click="connectToWeb3()">Connect</b-button>
     </div>
     <b-button v-else>No Web3 detected - Install metamask</b-button>
@@ -10,52 +10,52 @@
 </template>
 
 <script>
-let QTUMMainnet = {
-  chainId: '0x51', // 81
-  chainName: 'QTUM Mainnet',
-  rpcUrls: ['https://janus.qiswap.com/api/'],
-  blockExplorerUrls: ['https://qtum.info/'],
+let KAONMainnet = {
+  chainId: '0x2ED3', // 11987
+  chainName: 'Kaon Mainnet',
+  rpcUrls: ['https://mainnet.kaon.one/'],
+  blockExplorerUrls: ['https://mainnet.kaon.one/'],
   iconUrls: [
-    'https://qtum.info/images/metamask_icon.svg',
-    'https://qtum.info/images/metamask_icon.png',
+    'https://kaon.one/images/metamask_icon.svg',
+    'https://kaon.one/images/metamask_icon.png',
   ],
   nativeCurrency: {
     decimals: 18,
-    symbol: 'QTUM',
+    symbol: 'KAON',
   },
 };
-let QTUMTestNet = {
-  chainId: '0x22B9', // 8889
-  chainName: 'QTUM Testnet',
-  rpcUrls: ['https://testnet-janus.qiswap.com/api/'],
-  blockExplorerUrls: ['https://testnet.qtum.info/'],
+let KAONRegTest = {
+  chainId: '0x2ED4', // 11988
+  chainName: 'Kaon Regtest',
+  rpcUrls: ['https://localhost:25991'],
+  // blockExplorerUrls: [''],
   iconUrls: [
-    'https://qtum.info/images/metamask_icon.svg',
-    'https://qtum.info/images/metamask_icon.png',
+    'https://kaon.one/images/metamask_icon.svg',
+    'https://kaon.one/images/metamask_icon.png',
   ],
   nativeCurrency: {
     decimals: 18,
-    symbol: 'QTUM',
+    symbol: 'KAON',
   },
 };
-let QTUMRegTest = {
-  chainId: '0x22BA', // 8890
-  chainName: 'QTUM Regtest',
-  rpcUrls: ['https://localhost:23889'],
-  // blockExplorerUrls: ['https://testnet.qtum.info/'],
+let KAONTestNet = {
+  chainId: '0x2ED5', // 11989
+  chainName: 'Kaon Testnet',
+  rpcUrls: ['https://testnet.kaon.one/'],
+  blockExplorerUrls: ['https://testnet.kaon.one/'],
   iconUrls: [
-    'https://qtum.info/images/metamask_icon.svg',
-    'https://qtum.info/images/metamask_icon.png',
+    'https://kaon.one/images/metamask_icon.svg',
+    'https://kaon.one/images/metamask_icon.png',
   ],
   nativeCurrency: {
     decimals: 18,
-    symbol: 'QTUM',
+    symbol: 'KAON',
   },
 };
 let config = {
-  "0x22B8": QTUMMainnet,
-  "0x22B9": QTUMTestNet,
-  "0x22BA": QTUMRegTest,
+  "0x2ED3": KAONMainnet,
+  "0x2ED5": KAONTestNet,
+  "0x2ED4": KAONRegTest,
 };
 
 export default {
@@ -63,7 +63,7 @@ export default {
   props: {
     msg: String,
     connected: Boolean,
-    qtumConnected: Boolean,
+    kaonConnected: Boolean,
   },
   computed: {
     web3Detected: function() {
@@ -72,44 +72,44 @@ export default {
   },
   methods: {
     getChainId: function() {
-      return window.qtum.chainId;
+      return window.kaon.chainId;
     },
-    isOnQtumChainId: function() {
+    isOnKaonChainId: function() {
       let chainId = this.getChainId();
-      return chainId == QTUMMainnet.chainId || chainId == QTUMTestNet.chainId;
+      return chainId == KAONMainnet.chainId || chainId == KAONTestNet.chainId;
     },
     connectToWeb3: function(){
       if (this.connected) {
         return;
       }
       let self = this;
-      window.qtum.request({ method: 'eth_requestAccounts' })
+      window.kaon.request({ method: 'eth_requestAccounts' })
         .then(() => {
           console.log("Emitting web3Connected event");
-          let qtumConnected = self.isOnQtumChainId();
-          let currentlyQtumConnected = self.qtumConnected;
+          let kaonConnected = self.isOnKaonChainId();
+          let currentlykaonConnected = self.kaonConnected;
           self.$emit("web3Connected", true);
-          if (currentlyQtumConnected != qtumConnected) {
-            console.log("ChainID matches QTUM, not prompting to add network to web3, already connected.");
-            self.$emit("qtumConnected", true);
+          if (currentlykaonConnected != kaonConnected) {
+            console.log("ChainID matches Kaon Network, not prompting to add network to web3, already connected.");
+            self.$emit("kaonConnected", true);
           }
         })
         .catch((e) => {
           console.log("Connecting to web3 failed", arguments, e);
         })
     },
-    connectToQtum: function() {
-      console.log("Connecting to Qtum, current chainID is", this.getChainId());
+    connectToKAON: function() {
+      console.log("Connecting to Kaon Network, current chainID is", this.getChainId());
 
       let self = this;
-      let qtumConfig = config[this.getChainId()] || QTUMTestNet;
-      console.log("Adding network to Metamask", qtumConfig);
-      window.qtum.request({
+      let kaonConfig = config[this.getChainId()] || KAONTestNet;
+      console.log("Adding network to Metamask", kaonConfig);
+      window.kaon.request({
         method: "wallet_addEthereumChain",
-        params: [qtumConfig],
+        params: [kaonConfig],
       })
         .then(() => {
-          self.$emit("qtumConnected", true);
+          self.$emit("kaonConnected", true);
         })
         .catch(() => {
           console.log("Adding network failed", arguments);
