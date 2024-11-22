@@ -1,13 +1,13 @@
 var token
 
-# qcli gethexaddress qUbxboqjBRp96j3La8D1RYkyqx5uQbJPoW
-# 7926223070547d2d15b2ef5e7383e541c338ffe9
+# kaon-cli gethexaddress ar2SzdHghSgeacypPn7zfDe3qfKAEwimus
+# 1CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead
 
-# qcli gethexaddress qLn9vqbr2Gx3TsVR9QyTVB5mrMoh4x43Uf
-# 2352be3db3177f0a07efbe6da5857615b8c9901d
+# kaon-cli gethexaddress auASFMxv45WgjCW6wkpDuHWjxXhzNA9mjP
+# 3f501c368cb9ddb5f27ed72ac0d602724adfa175
 
-var acc1 = "0x7926223070547d2d15b2ef5e7383e541c338ffe9"
-var acc2 = "0x2352be3db3177f0a07efbe6da5857615b8c9901d"
+var acc1 = "0x1CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead"
+var acc2 = "0x3f501c368cb9ddb5f27ed72ac0d602724adfa175"
 
 MyToken.deployed().then(function(i) { token = i })
 

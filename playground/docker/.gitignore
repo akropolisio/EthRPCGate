@@ -1,4 +1,4 @@
-/janus-linux-amd64
-/.qtum
+/eth-rpc-gate-linux-amd64
+/.kaon
 /supervisord.*
 /env.list

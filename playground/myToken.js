@@ -1,20 +1,20 @@
 const url = require('url');
 
 const rpcURL =  process.env.ETH_RPC;
-const qtumAccount  = url.parse(rpcURL).auth.split(":")[0]
+const kaonAccount  = url.parse(rpcURL).auth.split(":")[0]
 
 // assume: node 8 or above
 const ora = require("ora")
 const parseArgs = require("minimist")
 
-const qtum = require("qtumjs")
-const rpc = new qtum.EthRPC(rpcURL, qtumAccount)
+const kaon = require("qtumjs")
+const rpc = new kaon.EthRPC(rpcURL, kaonAccount)
 const repoData = require("./solar.development.json")
 const {
   sender,
   ...info
 } = repoData.contracts['contracts/MyToken.sol']
-const myToken = new qtum.Contract(rpc, info)
+const myToken = new kaon.Contract(rpc, info)
 
 const opts = {gasPrice: 100}
 

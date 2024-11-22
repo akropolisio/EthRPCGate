@@ -42,7 +42,7 @@ function testGet(store) {
 function testSet(store) {
   var newVal = Math.floor((Math.random() * 1000) + 1);
   console.log(`exec: store.set(${newVal})`)
-  return store.set(newVal, {from: "0x7926223070547d2d15b2ef5e7383e541c338ffe9"}).then(function(res) {
+  return store.set(newVal, {from: "0x1CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead"}).then(function(res) {
     console.log("receipt: ", res)
   }).catch(function(e) {
     console.log(e)

@@ -3,15 +3,15 @@ import './SafeMath.sol';
 
 
 /**
-    QRC20Token Standard Token implementation
+    URC20Token Standard Token implementation
 */
-contract QRC20Token is SafeMath {
+contract URC20Token is SafeMath {
     string public constant standard = 'Token 0.1';
-    uint8 public constant decimals = 8; // it's recommended to set decimals to 8 in QTUM
+    uint8 public constant decimals = 8; // it's recommended to set decimals to 8 in KAON
 
     // you need change the following three values
-    string public constant name = 'QRC TEST';
-    string public constant symbol = 'QTC';
+    string public constant name = 'URC TEST';
+    string public constant symbol = 'UTC';
     //Default assumes totalSupply can't be over max (2^256 - 1).
     //you need multiply 10^decimals by your real total supply.
     uint256 public totalSupply = 10**9 * 10**uint256(decimals);
@@ -71,7 +71,7 @@ contract QRC20Token is SafeMath {
         return true;
     }
 
-    // disable pay QTUM to this contract
+    // disable pay KAON to this contract
     receive() external payable {
         revert();
     }

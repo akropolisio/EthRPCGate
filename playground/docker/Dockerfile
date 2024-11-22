@@ -1,3 +1,3 @@
-FROM dcb9/qtumportal
+FROM username/kaonportal
 
-COPY janus-linux-amd64 /usr/local/bin/janus
+COPY ethrpcgate-linux-amd64 /usr/local/bin/eth-rpc-gate

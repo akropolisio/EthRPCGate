@@ -1,17 +1,17 @@
-// YOUR_QTUM_ACCOUNT
+// YOUR_KAON_ACCOUNT
 const url = require('url');
 
 const rpcURL=  process.env.ETH_RPC;
-const qtumAccount  = url.parse(rpcURL).auth.split(":")[0]
+const kaonAccount  = url.parse(rpcURL).auth.split(":")[0]
 
-const qtum = require("qtumjs")
-const rpc = new qtum.EthRPC(rpcURL, qtumAccount)
+const kaon = require("qtumjs") // TODO: replace with ethers
+const rpc = new kaon.EthRPC(rpcURL, kaonAccount)
 const repoData = require("./solar.development.json")
 const {
   sender,
   ...info
 } = repoData.contracts['./contracts/SimpleStore.sol']
-const simpleStoreContract = new qtum.Contract(rpc, info)
+const simpleStoreContract = new kaon.Contract(rpc, info)
 
 const opts = {gasPrice: 100}
 
