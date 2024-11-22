@@ -8,6 +8,7 @@ import (
 	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/labstack/echo"
+	"github.com/pkg/errors"
 )
 
 // ProxyKAONGetHexAddress implements ETHProxy
@@ -21,9 +22,19 @@ func (p *ProxyKAONGetHexAddress) Method() string {
 
 func (p *ProxyKAONGetHexAddress) Request(req *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	var address string
-	if err := json.Unmarshal(req.Params, &address); err != nil {
-		// TODO: Correct error code?
-		return nil, eth.NewInvalidParamsError("couldn't unmarshal request")
+
+	var err error
+	var params []json.RawMessage
+	if err = json.Unmarshal(req.Params, &params); err != nil {
+		return nil, eth.NewCallbackError(errors.Wrap(err, "json unmarshal").Error())
+	}
+
+	if len(params) == 0 {
+		return nil, eth.NewInvalidParamsError("params must be set")
+	}
+
+	if err := json.Unmarshal(params[0], &address); err != nil {
+		return nil, eth.NewCallbackError(errors.Wrap(err, "json unmarshal").Error())
 	}
 	if address == "" {
 		// TODO: Correct error code?
