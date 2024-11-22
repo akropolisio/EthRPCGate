@@ -95,7 +95,7 @@ func (s *Server) Start() error {
 	health.AddLivenessCheck("kaond-logevents-enabled", func() error { return s.testLogEvents() })
 	health.AddLivenessCheck("kaond-blocks-syncing", func() error { return s.testBlocksSyncing() })
 	health.AddLivenessCheck("kaond-error-rate", func() error { return s.testKaondErrorRate() })
-	health.AddLivenessCheck("ethrpcgate-error-rate", func() error { return s.testeth - rpc - gateErrorRate() })
+	health.AddLivenessCheck("ethrpcgate-error-rate", func() error { return s.testEthRPCGateErrorRate() })
 
 	e.Use(middleware.CORS())
 	e.Use(middleware.BodyDump(func(c echo.Context, req []byte, res []byte) {
