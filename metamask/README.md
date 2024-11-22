@@ -1,4 +1,4 @@
-# Simple VUE project to switch to QTUM network via Metamask
+# Simple VUE project to switch to Kaon network via Metamask
 
 ## Project setup
 ```
@@ -21,24 +21,24 @@ See [Configuration Reference](https://cli.vuejs.org/config/).
 ### wallet_addEthereumChain
 ```
 // request account access
-window.qtum.request({ method: 'eth_requestAccounts' })
+window.kaon.request({ method: 'eth_requestAccounts' })
     .then(() => {
         // add chain
-        window.qtum.request({
+        window.kaon.request({
             method: "wallet_addEthereumChain",
             params: [{
                 {
-                    chainId: '0x22B9',
-                    chainName: 'Qtum Testnet',
-                    rpcUrls: ['https://localhost:23889'],
-                    blockExplorerUrls: ['https://testnet.qtum.info/'],
+                    chainId: '0x2ED5',
+                    chainName: 'Kaon Testnet',
+                    rpcUrls: ['https://testnet.kaon.one/'],
+                    blockExplorerUrls: ['https://testnet.kaon.one/'],
                     iconUrls: [
-                        'https://qtum.info/images/metamask_icon.svg',
-                        'https://qtum.info/images/metamask_icon.png',
+                        'https://kaon.one/images/metamask_icon.svg',
+                        'https://kaon.one/images/metamask_icon.png',
                     ],
                     nativeCurrency: {
                         decimals: 18,
-                        symbol: 'QTUM',
+                        symbol: 'KAON',
                     },
                 }
             }],
@@ -48,6 +48,6 @@ window.qtum.request({ method: 'eth_requestAccounts' })
 
 # Known issues
 - Metamask requires https for `rpcUrls` so that must be enabled
-  - Either directly through Janus with `--https-key ./path --https-cert ./path2` see [SSL](../README.md#ssl)
-  - Through the Makefile `make docker-configure-https && make run-janus-https`
+  - Either directly through eth-rpc-gate with `--https-key ./path --https-cert ./path2` see [SSL](../README.md#ssl)
+  - Through the Makefile `make docker-configure-https && make run-ethrpcgate-https`
   - Or do it yourself with a proxy (eg, nginx)
