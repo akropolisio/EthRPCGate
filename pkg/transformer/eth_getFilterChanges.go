@@ -7,15 +7,15 @@ import (
 
 	"github.com/labstack/echo"
 
-	"github.com/qtumproject/janus/pkg/conversion"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
+	"github.com/kaonone/eth-rpc-gate/pkg/conversion"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 )
 
 // ProxyETHGetFilterChanges implements ETHProxy
 type ProxyETHGetFilterChanges struct {
-	*qtum.Qtum
+	*kaon.Kaon
 	filter *eth.FilterSimulator
 }
 
@@ -23,7 +23,7 @@ func (p *ProxyETHGetFilterChanges) Method() string {
 	return "eth_getFilterChanges"
 }
 
-func (p *ProxyETHGetFilterChanges) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetFilterChanges) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 
 	filter, err := processFilter(p, rawreq)
 	if err != nil {
@@ -42,18 +42,18 @@ func (p *ProxyETHGetFilterChanges) Request(rawreq *eth.JSONRPCRequest, c echo.Co
 	}
 }
 
-func (p *ProxyETHGetFilterChanges) requestBlockFilter(ctx context.Context, filter *eth.Filter) (qtumresp eth.GetFilterChangesResponse, err eth.JSONRPCError) {
-	qtumresp = make(eth.GetFilterChangesResponse, 0)
+func (p *ProxyETHGetFilterChanges) requestBlockFilter(ctx context.Context, filter *eth.Filter) (kaonresp eth.GetFilterChangesResponse, err *eth.JSONRPCError) {
+	kaonresp = make(eth.GetFilterChangesResponse, 0)
 
 	_lastBlockNumber, ok := filter.Data.Load("lastBlockNumber")
 	if !ok {
-		return qtumresp, eth.NewCallbackError("Could not get lastBlockNumber")
+		return kaonresp, eth.NewCallbackError("Could not get lastBlockNumber")
 	}
 	lastBlockNumber := _lastBlockNumber.(uint64)
 
 	blockCountBigInt, blockErr := p.GetBlockCount(ctx)
 	if blockErr != nil {
-		return qtumresp, eth.NewCallbackError(blockErr.Error())
+		return kaonresp, eth.NewCallbackError(blockErr.Error())
 	}
 	blockCount := blockCountBigInt.Uint64()
 
@@ -65,29 +65,29 @@ func (p *ProxyETHGetFilterChanges) requestBlockFilter(ctx context.Context, filte
 
 		resp, err := p.GetBlockHash(ctx, blockNumber)
 		if err != nil {
-			return qtumresp, eth.NewCallbackError(err.Error())
+			return kaonresp, eth.NewCallbackError(err.Error())
 		}
 
 		hashes[i] = utils.AddHexPrefix(string(resp))
 	}
 
-	qtumresp = hashes
+	kaonresp = hashes
 	filter.Data.Store("lastBlockNumber", blockCount)
 	return
 }
 
-func (p *ProxyETHGetFilterChanges) requestFilter(ctx context.Context, filter *eth.Filter) (qtumresp eth.GetFilterChangesResponse, err eth.JSONRPCError) {
-	qtumresp = make(eth.GetFilterChangesResponse, 0)
+func (p *ProxyETHGetFilterChanges) requestFilter(ctx context.Context, filter *eth.Filter) (kaonresp eth.GetFilterChangesResponse, err *eth.JSONRPCError) {
+	kaonresp = make(eth.GetFilterChangesResponse, 0)
 
 	_lastBlockNumber, ok := filter.Data.Load("lastBlockNumber")
 	if !ok {
-		return qtumresp, eth.NewCallbackError("Could not get lastBlockNumber")
+		return kaonresp, eth.NewCallbackError("Could not get lastBlockNumber")
 	}
 	lastBlockNumber := _lastBlockNumber.(uint64)
 
 	blockCountBigInt, blockErr := p.GetBlockCount(ctx)
 	if blockErr != nil {
-		return qtumresp, eth.NewCallbackError(blockErr.Error())
+		return kaonresp, eth.NewCallbackError(blockErr.Error())
 	}
 	blockCount := blockCountBigInt.Uint64()
 
@@ -105,13 +105,13 @@ func (p *ProxyETHGetFilterChanges) requestFilter(ctx context.Context, filter *et
 	return p.doSearchLogs(ctx, searchLogsReq)
 }
 
-func (p *ProxyETHGetFilterChanges) doSearchLogs(ctx context.Context, req *qtum.SearchLogsRequest) (eth.GetFilterChangesResponse, eth.JSONRPCError) {
-	resp, err := conversion.SearchLogsAndFilterExtraTopics(ctx, p.Qtum, req)
+func (p *ProxyETHGetFilterChanges) doSearchLogs(ctx context.Context, req *kaon.SearchLogsRequest) (eth.GetFilterChangesResponse, *eth.JSONRPCError) {
+	resp, err := conversion.SearchLogsAndFilterExtraTopics(ctx, p.Kaon, req)
 	if err != nil {
 		return nil, err
 	}
 
-	receiptToResult := func(receipt *qtum.TransactionReceipt) []interface{} {
+	receiptToResult := func(receipt *kaon.TransactionReceipt) []interface{} {
 		logs := conversion.ExtractETHLogsFromTransactionReceipt(receipt, receipt.Log)
 		res := make([]interface{}, len(logs))
 		for i := range res {
@@ -121,14 +121,14 @@ func (p *ProxyETHGetFilterChanges) doSearchLogs(ctx context.Context, req *qtum.S
 	}
 	results := make(eth.GetFilterChangesResponse, 0)
 	for _, receipt := range resp {
-		r := qtum.TransactionReceipt(receipt)
+		r := kaon.TransactionReceipt(receipt)
 		results = append(results, receiptToResult(&r)...)
 	}
 
 	return results, nil
 }
 
-func (p *ProxyETHGetFilterChanges) toSearchLogsReq(filter *eth.Filter, from, to *big.Int) (*qtum.SearchLogsRequest, eth.JSONRPCError) {
+func (p *ProxyETHGetFilterChanges) toSearchLogsReq(filter *eth.Filter, from, to *big.Int) (*kaon.SearchLogsRequest, *eth.JSONRPCError) {
 	ethreq := filter.Request.(*eth.NewFilterRequest)
 	var err error
 	var addresses []string
@@ -151,7 +151,7 @@ func (p *ProxyETHGetFilterChanges) toSearchLogsReq(filter *eth.Filter, from, to 
 		}
 	}
 
-	qtumreq := &qtum.SearchLogsRequest{
+	kaonreq := &kaon.SearchLogsRequest{
 		Addresses: addresses,
 		FromBlock: from,
 		ToBlock:   to,
@@ -159,8 +159,8 @@ func (p *ProxyETHGetFilterChanges) toSearchLogsReq(filter *eth.Filter, from, to 
 
 	topics, ok := filter.Data.Load("topics")
 	if ok {
-		qtumreq.Topics = topics.([]qtum.SearchLogsTopic)
+		kaonreq.Topics = topics.([]kaon.SearchLogsTopic)
 	}
 
-	return qtumreq, nil
+	return kaonreq, nil
 }

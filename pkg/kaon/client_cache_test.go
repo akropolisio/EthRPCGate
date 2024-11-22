@@ -1,4 +1,4 @@
-package qtum
+package kaon
 
 import (
 	"testing"

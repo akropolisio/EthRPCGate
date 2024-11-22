@@ -1,15 +1,15 @@
 package transformer
 
 import (
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/notifier"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/notifier"
-	"github.com/qtumproject/janus/pkg/qtum"
 )
 
 // ETHUnsubscribe implements ETHProxy
 type ETHUnsubscribe struct {
-	*qtum.Qtum
+	*kaon.Kaon
 	*notifier.Agent
 }
 
@@ -17,7 +17,7 @@ func (p *ETHUnsubscribe) Method() string {
 	return "eth_unsubscribe"
 }
 
-func (p *ETHUnsubscribe) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ETHUnsubscribe) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	notifier := getNotifier(c)
 	if notifier == nil {
 		p.GetLogger().Log("msg", "eth_unsubscribe only supported over websocket")
@@ -44,7 +44,7 @@ func (p *ETHUnsubscribe) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (in
 	return p.request(&req, notifier)
 }
 
-func (p *ETHUnsubscribe) request(req *eth.EthUnsubscribeRequest, notifier *notifier.Notifier) (eth.EthUnsubscribeResponse, eth.JSONRPCError) {
+func (p *ETHUnsubscribe) request(req *eth.EthUnsubscribeRequest, notifier *notifier.Notifier) (eth.EthUnsubscribeResponse, *eth.JSONRPCError) {
 	if len(*req) != 1 {
 		// TODO: Correct error code?
 		return false, eth.NewInvalidParamsError("requires one parameter")

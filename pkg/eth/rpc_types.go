@@ -8,15 +8,15 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/pkg/errors"
-	"github.com/qtumproject/janus/pkg/utils"
 	"github.com/shopspring/decimal"
 )
 
-var DefaultGasAmountForQtum = big.NewInt(250000)
+var DefaultGasAmountForKaon = big.NewInt(210000) // 2.1e5 (min gas limit)
 
-// QTUM default gas value (also the minimum gas) in wei
-var DefaultGasPriceInWei = big.NewInt(40000000000)
+// Kaon default gas value is 2 * CENT
+var DefaultGasPriceInWei = big.NewInt(2000000000)
 
 type (
 	SendTransactionResponse string
@@ -45,13 +45,13 @@ func (r *SendTransactionRequest) UnmarshalJSON(data []byte) error {
 
 	if r.Gas == nil {
 		// ETH: (optional, default: 90000) Integer of the gas provided for the transaction execution. It will return unused gas.
-		// QTUM: (numeric or string, optional) gasLimit, default: 250000, max: 40000000
-		r.Gas = &ETHInt{DefaultGasAmountForQtum}
+		// Kaon: (numeric or string, optional) gasLimit, default: 6 * CENT, max: 60000 * CENT (CENT is gwei)
+		r.Gas = &ETHInt{DefaultGasAmountForKaon}
 	}
 
 	if r.GasPrice == nil {
 		// ETH: (optional, default: To-Be-Determined) Integer of the gasPrice used for each paid gas
-		// QTUM: (numeric or string, optional) gasPrice Qtum price per gas unit, default: 0.0000004, min:0.0000004
+		// Kaon: (numeric or string, optional) gasPrice KAON price per gas unit, default: 20 * CENT, 1 * CENT (CENT is gwei)
 		r.GasPrice = &ETHInt{DefaultGasPriceInWei}
 	}
 
@@ -88,21 +88,119 @@ func (t *SendTransactionRequest) GasPriceHex() string {
 }
 
 // ========== eth_sendRawTransaction ============= //
+type ResultType interface {
+	IsResultType()
+}
 
 type (
 	// Presents hexed string of a raw transaction
 	SendRawTransactionRequest [1]string
+
 	// Presents hexed string of a transaction hash
 	SendRawTransactionResponse string
+	/*
+	   {
+	   "txid": "d0fe0caa1b798c36da37e9118a06a7d151632d670b82d1c7dc3985577a71880f",
+	   "sender": "qTKrsHUrzutdCVu3qi3iV1upzB2QpuRsRb",
+	   "hash160": "6b22910b1e302cf74803ffd1691c2ecb858d3712",
+	   "address": "c89a5d225f578d84a94741490c1b40889b4f7a00"
+	   }
+	*/
+	CreateContractResponse struct {
+		Txid    string `json:"txid"`
+		Sender  string `json:"sender"`
+		Hash160 string `json:"hash160"`
+		Address string `json:"address"`
+	}
+	/*
+		{
+		  "address": "1e6f89d7399081b4f8f8aa1ae2805a5efff2f960",
+		  "executionResult": {
+		    "gasUsed": 21678,
+		    "excepted": "None",
+		    "newAddress": "1e6f89d7399081b4f8f8aa1ae2805a5efff2f960",
+		    "output": "0000000000000000000000000000000000000000000000000000000000000001",
+		    "codeDeposit": 0,
+		    "gasRefunded": 0,
+		    "depositSize": 0,
+		    "gasForDeposit": 0
+		  },
+		  "transactionReceipt": {
+		    "stateRoot": "d44fc5ad43bae52f01ff7eb4a7bba904ee52aea6c41f337aa29754e57c73fba6",
+		    "gasUsed": 21678,
+		    "bloom": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+		    "log": []
+		  }
+		}
+	*/
+	CallContractResponse struct {
+		Address         string `json:"address"`
+		ExecutionResult struct {
+			GasUsed         big.Int `json:"gasUsed"`
+			Excepted        string  `json:"excepted"`
+			ExceptedMessage string  `json:"exceptedMessage"`
+			NewAddress      string  `json:"newAddress"`
+			Output          string  `json:"output"`
+			CodeDeposit     int     `json:"codeDeposit"`
+			GasRefunded     big.Int `json:"gasRefunded"`
+			DepositSize     int     `json:"depositSize"`
+			GasForDeposit   big.Int `json:"gasForDeposit"`
+		} `json:"executionResult"`
+		TransactionReceipt struct {
+			StateRoot string        `json:"stateRoot"`
+			GasUsed   big.Int       `json:"gasUsed"`
+			Bloom     string        `json:"bloom"`
+			Log       []interface{} `json:"log"`
+		} `json:"transactionReceipt"`
+	}
+	/*
+		{
+		  "txid": "6b7f70d8520e1ec87ba7f1ee559b491cc3028b77ae166e789be882b5d370eac9",
+		  "sender": "qTKrsHUrzutdCVu3qi3iV1upzB2QpuRsRb",
+		  "hash160": "6b22910b1e302cf74803ffd1691c2ecb858d3712"
+		}
+	*/
+	SendToContractResponse struct {
+		Txid    string `json:"txid"`
+		Sender  string `json:"sender"`
+		Hash160 string `json:"hash160"`
+	}
 )
+
+type GeneralSendRawTransactionResponse struct {
+	Result interface{} `json:"result"`
+	// It may have in the Data
+	// SendRawTransactionResponse / CreateContractResponse / CallContractResponse or SendToContractResponse
+	Data interface{} `json:"-"`
+}
+
+func (r GeneralSendRawTransactionResponse) MarshalJSON() ([]byte, error) {
+	switch result := r.Result.(type) {
+	case string:
+		return json.Marshal(result)
+	case *CreateContractResponse:
+		return json.Marshal(result)
+	case *CallContractResponse:
+		return json.Marshal(result)
+	case *SendToContractResponse:
+		return json.Marshal(result)
+	default:
+		type Alias GeneralSendRawTransactionResponse
+		return json.Marshal(&struct {
+			*Alias
+		}{
+			Alias: (*Alias)(&r),
+		})
+	}
+}
 
 // CallResponse
 type CallResponse string
 
 // CallRequest eth_call
 type CallRequest struct {
-	From     string  `json:"from"`
-	To       string  `json:"to"`
+	From     string  `json:"from"`     // optional|mandatory
+	To       string  `json:"to"`       // optional|mandatory
 	Gas      *ETHInt `json:"gas"`      // optional
 	GasPrice *ETHInt `json:"gasPrice"` // optional
 	Value    string  `json:"value"`    // optional
@@ -138,6 +236,9 @@ func (t *CallRequest) UnmarshalJSON(data []byte) error {
 	var obj txCallObject
 	if err = json.Unmarshal(params[0], &obj); err != nil {
 		return err
+	}
+	if obj.To == "0x0000000000000000000000000000000000000000" {
+		return nil
 	}
 
 	cr := CallRequest(obj)
@@ -265,6 +366,11 @@ type (
 		Gas string `json:"gas"`
 		// Gas price provided by the sender in Wei
 		GasPrice string `json:"gasPrice"`
+
+		// Cumulative gas used
+		CumulativeGas string `json:"cumulativeGas"`
+		// Gas used by the rrx TODO
+		GasUsed string `json:"gasUsed"`
 
 		// ECDSA recovery id
 		V string `json:"v,omitempty"`
@@ -419,6 +525,311 @@ func (r *GetTransactionReceiptRequest) UnmarshalJSON(data []byte) error {
 
 	*r = GetTransactionReceiptRequest(params[0])
 	return nil
+}
+
+// ========== debug_traceBlockByNumber ============= //
+// Example of the request:  [
+//       "0x72ABA",
+//       {
+//         "timeout": "15s",
+//         "tracer": "callTracer"
+//       }
+// ]
+
+type TraceBlockByNumberRequest struct {
+	Address string
+	Config  TraceConfig
+}
+
+type TraceBlockByNumberConfig struct {
+	Timeout string `json:"timeout"`
+	Tracer  string `json:"tracer"`
+}
+
+// Example of the response:  [
+// {
+//   "txHash": "0xb42edc1d46932ef34be0ba49402dc94e3d2319c066f02945f6828cd344fcfa7b",
+//   "result": {
+// 	 "calls": [
+// 	  {
+// 		"calls": [
+// 		  {
+// 			"from": "0x00000000000000000000000000000000000001ff",
+// 			"gas": "0x595a",
+// 			"gasUsed": "0x16",
+// 			"input": "0x0100",
+// 			"output": "0x0100",
+// 			"to": "0x00000000000000000000000000000000000000ff",
+// 			"type": "CALL",
+// 			"value": "0x0"
+// 		  }
+// 		],
+// 		"from": "0x00000000000000000000000000000000000002ff",
+// 		"gas": "0x6525",
+// 		"gasUsed": "0xa7b",
+// 		"input": "0x000100",
+// 		"output": "0x0100",
+// 		"to": "0x00000000000000000000000000000000000001ff",
+// 		"type": "CALL",
+// 		"value": "0x0"
+// 	  },
+// 	  {
+// 		"calls": [
+// 		  {
+// 			"from": "0x00000000000000000000000000000000000001ff",
+// 			"gas": "0x584a",
+// 			"gasUsed": "0x10",
+// 			"input": "0x",
+// 			"to": "0x00000000000000000000000000000000000000ff",
+// 			"type": "CALL",
+// 			"value": "0x0"
+// 		  }
+// 		],
+// 		"from": "0x00000000000000000000000000000000000002ff",
+// 		"gas": "0x5a4c",
+// 		"gasUsed": "0xb1",
+// 		"input": "0x00",
+// 		"to": "0x00000000000000000000000000000000000001ff",
+// 		"type": "CALL",
+// 		"value": "0x0"
+// 	  }
+// 	],
+// 	"from": "0x71562b71999873db5b286df957af199ec94617f7",
+// 	"gas": "0xc350",
+// 	"gasUsed": "0x684c",
+// 	"input": "0x01000100",
+// 	"to": "0x00000000000000000000000000000000000002ff",
+// 	"type": "CALL",
+// 	"value": "0x0"
+//   }
+// }]
+
+type TraceBlockByNumberResponse []TxTraceResult
+
+// TxTraceResult is the result of a single transaction trace.
+type TxTraceResult struct {
+	TxHash common.Hash `json:"txHash"`           // transaction hash
+	Result CallTrace   `json:"result,omitempty"` // Trace results produced by the tracer
+	Error  string      `json:"error,omitempty"`  // Trace failure produced by the tracer
+}
+
+func (r *TraceBlockByNumberRequest) UnmarshalJSON(data []byte) error {
+	var params []interface{}
+	err := json.Unmarshal(data, &params)
+	if err != nil {
+		return errors.Wrap(err, "json unmarshalling")
+	}
+
+	if len(params) != 2 {
+		return errors.New("params must be set and contain exactly two elements")
+	}
+
+	address, ok := params[0].(string)
+	if !ok {
+		return errors.New("first parameter should be a string")
+	}
+
+	configMap, ok := params[1].(map[string]interface{})
+	if !ok {
+		return errors.New("second parameter should be an object")
+	}
+
+	var config TraceConfig
+	configBytes, err := json.Marshal(configMap)
+	if err != nil {
+		return errors.Wrap(err, "json marshalling")
+	}
+
+	err = json.Unmarshal(configBytes, &config)
+	if err != nil {
+		return errors.Wrap(err, "json unmarshalling config")
+	}
+
+	*r = TraceBlockByNumberRequest{
+		Address: address,
+		Config:  config,
+	}
+
+	return nil
+}
+
+// ========== trace_block ============= //
+// TraceBlockRequest represents the request for the trace_block method (numbers of the block, e.g. "0x2")
+type TraceBlockRequest string
+
+func (r *TraceBlockRequest) UnmarshalJSON(data []byte) error {
+	var params []string
+	err := json.Unmarshal(data, &params)
+	if err != nil {
+		return errors.Wrap(err, "json unmarshalling")
+	}
+
+	if len(params) == 0 {
+		return errors.New("params must be set")
+	}
+
+	*r = TraceBlockRequest(params[0])
+	return nil
+}
+
+/*
+Example of the response: [
+    {
+      "action": {
+        "callType": "call",
+        "from": "0xaa7b131dc60b80d3cf5e59b5a21a666aa039c951",
+        "gas": "0x0",
+        "input": "0x",
+        "to": "0xd40aba8166a212d6892125f079c33e6f5ca19814",
+        "value": "0x4768d7effc3fbe"
+      },
+      "blockHash": "0x7eb25504e4c202cf3d62fd585d3e238f592c780cca82dacb2ed3cb5b38883add",
+      "blockNumber": 3068185,
+      "result": {
+        "gasUsed": "0x0",
+        "output": "0x"
+      },
+      "subtraces": 0,
+      "traceAddress": [],
+      "transactionHash": "0x07da28d752aba3b9dd7060005e554719c6205c8a3aea358599fc9b245c52f1f6",
+      "transactionPosition": 0,
+      "type": "call"
+    },
+    {
+      "action": {
+        "callType": "call",
+        "from": "0x4f11ba23bb526c0486d83c6a8f18f632f3fc172a",
+        "gas": "0x0",
+        "input": "0x",
+        "to": "0x7ed1e469fcb3ee19c0366d829e291451be638e59",
+        "value": "0x446cde325fbfbe"
+      },
+      "blockHash": "0x7eb25504e4c202cf3d62fd585d3e238f592c780cca82dacb2ed3cb5b38883add",
+      "blockNumber": 3068185,
+      "result": {
+        "gasUsed": "0x0",
+        "output": "0x"
+      },
+      "subtraces": 0,
+      "traceAddress": [],
+      "transactionHash": "0x056f11efb5da4ff7cf8523cfcef08393e5dd2ff3ab3223e4324426d285d7ae92",
+      "transactionPosition": 1,
+      "type": "call"
+    },
+	{
+      "action": {
+        "author": "0x7ed1e469fcb3ee19c0366d829e291451be638e59",
+        "rewardType": "block",
+        "value": "0x446cde325fbfbe"
+      },
+      "blockHash": "0x7eb25504e4c202cf3d62fd585d3e238f592c780cca82dacb2ed3cb5b38883add",
+      "blockNumber": 3068185,
+      "result": null,
+      "subtraces": 0,
+      "traceAddress": [],
+      "transactionHash": "0x056f11efb5da4ff7cf8523cfcef08393e5dd2ff3ab3223e4324426d285d7ae92",
+      "transactionPosition": 1,
+      "type": "reward"
+    },
+    {
+     ...
+    }
+  ]
+
+  Note: action may contain specific block reward info thus it'll jave Author and RewardType fields filled (and others may be empty in that case)
+*/
+
+type BlockTraceAction struct {
+	From       string `json:"from,omitempty"`
+	Type       string `json:"callType,omitempty"`
+	Gas        string `json:"gas,omitempty"`
+	Input      string `json:"input,omitempty"`
+	To         string `json:"to,omitempty"`
+	Value      string `json:"value"`
+	Author     string `json:"author,omitempty"`
+	RewardType string `json:"rewardType,omitempty"`
+}
+
+type BlockTraceResult struct {
+	GasUsed string `json:"gasUsed"`
+	Output  string `json:"output"`
+}
+
+type BlockTrace struct {
+	Action              BlockTraceAction  `json:"action"`
+	BlockHash           string            `json:"blockHash"`
+	BlockNumber         int               `json:"blockNumber"`
+	Result              *BlockTraceResult `json:"result"`
+	Subtraces           int               `json:"subtraces"`
+	TraceAddress        []int             `json:"traceAddress"`
+	TransactionHash     string            `json:"transactionHash"`
+	TransactionPosition int               `json:"transactionPosition"`
+	Type                string            `json:"type"`
+}
+
+type TraceBlockResponse []BlockTrace
+
+// ========== debug_traceTransaction ============= //
+// DebugTraceTransactionRequest represents the request for the debug_traceTransaction method.
+type DebugTraceTransactionRequest struct {
+	Hash   string      `json:"hash"`   // The hash of the transaction
+	Config TraceConfig `json:"config"` // The configuration for tracing (optional)
+}
+
+// TraceConfig represents the tracing options for debug_traceTransaction.
+type TraceConfig struct {
+	Tracer string `json:"tracer,omitempty"` // The tracer to use (e.g., "callTracer")
+	// Add other tracing options here as needed, such as:
+	// Reexec uint64 `json:"reexec,omitempty"`
+	// DisableStack bool `json:"disableStack,omitempty"`
+	// DisableStorage bool `json:"disableStorage,omitempty"`
+	// DisableMemory bool `json:"disableMemory,omitempty"`
+	// FullStorage bool `json:"fullStorage,omitempty"`
+	// Add other relevant fields based on the tracing options you want to support
+}
+
+func (r *DebugTraceTransactionRequest) UnmarshalJSON(data []byte) error {
+	var params []json.RawMessage
+	err := json.Unmarshal(data, &params)
+	if err != nil {
+		return errors.Wrap(err, "json unmarshalling")
+	}
+
+	if len(params) == 0 {
+		return errors.New("params must be set")
+	}
+
+	var txHash string
+	err = json.Unmarshal(params[0], &txHash)
+	if err != nil {
+		return errors.Wrap(err, "unmarshalling transaction hash")
+	}
+	r.Hash = txHash
+
+	// If a second parameter is present, unmarshal it into TraceConfig
+	if len(params) > 1 {
+		var config TraceConfig
+		err = json.Unmarshal(params[1], &config)
+		if err != nil {
+			return errors.Wrap(err, "unmarshalling trace config")
+		}
+		r.Config = config
+	}
+
+	return nil
+}
+
+type CallTrace struct {
+	Type    string      `json:"type,omitempty"`
+	From    string      `json:"from,omitempty"`
+	To      string      `json:"to,omitempty"`
+	Value   string      `json:"value,omitempty"`
+	Gas     string      `json:"gas,omitempty"`
+	GasUsed string      `json:"gasUsed,omitempty"`
+	Input   string      `json:"input,omitempty"`
+	Output  string      `json:"output,omitempty"`
+	Calls   []CallTrace `json:"calls,omitempty"`
+	Error   string      `json:"error,omitempty"`
 }
 
 // ========== eth_accounts ============= //
@@ -583,7 +994,7 @@ type (
 		LogsBloom  string `json:"logsBloom"`
 		Timestamp  string `json:"timestamp"`
 		ExtraData  string `json:"extraData"`
-		//Different type of response []string, []GetTransactionByHashResponse
+		//Different type of response []string, []GetTransactionResponse
 		Transactions     []interface{} `json:"transactions"`
 		StateRoot        string        `json:"stateRoot"`
 		TransactionsRoot string        `json:"transactionsRoot"`
@@ -908,7 +1319,7 @@ type EthSubscriptionParams struct {
 	SubscriptionID string      `json:"subscription"`
 }
 
-// ======= qtum_getUTXOs ============= //
+// ======= kaon_getUTXOs ============= //
 
 type UTXOScriptType int
 
@@ -960,7 +1371,7 @@ type (
 		Types        []UTXOScriptType
 	}
 
-	QtumUTXO struct {
+	KaonUTXO struct {
 		Address   string `json:"address"`
 		TXID      string `json:"txid"`
 		Vout      uint   `json:"vout"`
@@ -975,7 +1386,7 @@ type (
 		RedeemScript  string `json:"redeemScript,omitempty"`
 	}
 
-	GetUTXOsResponse []QtumUTXO
+	GetUTXOsResponse []KaonUTXO
 )
 
 func (req *GetUTXOsRequest) UnmarshalJSON(params []byte) error {
@@ -1046,43 +1457,43 @@ func (req GetUTXOsRequest) CheckHasValidValues() error {
 	return nil
 }
 
-func (utxo QtumUTXO) IsP2PK() bool {
+func (utxo KaonUTXO) IsP2PK() bool {
 	// len(spk)==35 and (spk[0:1] + spk[34:35]).hex()=='21ac'
 	return len(utxo.ScriptPubKey) == 70 && strings.ToLower((utxo.ScriptPubKey[0:2]+utxo.ScriptPubKey[68:70])) == "21ac"
 }
 
-func (utxo QtumUTXO) IsP2PKH() bool {
+func (utxo KaonUTXO) IsP2PKH() bool {
 	// len(spk)==25 and (spk[0:3] + spk[23:25]).hex()=='76a91488ac'
 	return len(utxo.ScriptPubKey) == 50 && strings.ToLower((utxo.ScriptPubKey[0:6]+utxo.ScriptPubKey[46:50])) == "76a91488ac"
 }
 
-func (utxo QtumUTXO) IsP2SH() bool {
+func (utxo KaonUTXO) IsP2SH() bool {
 	// 76a9143ade697fc8030489727bbb6af6a68f0a9eab2ec188ac
 	// len(spk) == 23 and (spk[0:2] + spk[22:23]).hex() == 'a91487'
 	return len(utxo.ScriptPubKey) == 46 && strings.ToLower((utxo.ScriptPubKey[0:4]+utxo.ScriptPubKey[44:46])) == "a91487"
 }
 
-func (utxo QtumUTXO) IsP2WPKH() bool {
+func (utxo KaonUTXO) IsP2WPKH() bool {
 	// len(spk) == 22 and (spk[0:2]).hex() == '0014'
 	return len(utxo.ScriptPubKey) == 44 && strings.ToLower(utxo.ScriptPubKey[0:4]) == "0014"
 }
 
-func (utxo QtumUTXO) IsP2WSH() bool {
+func (utxo KaonUTXO) IsP2WSH() bool {
 	// len(spk) == 34 and (spk[0:2]).hex() == '0020'
 	return len(utxo.ScriptPubKey) == 68 && strings.ToLower(utxo.ScriptPubKey[0:4]) == "0020"
 }
 
-func (utxo QtumUTXO) IsP2SHP2WPKH() bool {
+func (utxo KaonUTXO) IsP2SHP2WPKH() bool {
 	// is_p2sh() and len(ss) == 23 and (ss[0:3]).hex() == '160014'
 	return utxo.IsP2SH() && len(utxo.ScriptPubKey) == 46 && strings.ToLower(utxo.ScriptPubKey[0:6]) == "160014"
 }
 
-func (utxo QtumUTXO) IsP2SHP2WSH() bool {
+func (utxo KaonUTXO) IsP2SHP2WSH() bool {
 	// is_p2sh() and len(ss) == 35 and (ss[0:3]).hex() == '220020'
 	return utxo.IsP2SH() && len(utxo.ScriptPubKey) == 70 && strings.ToLower(utxo.ScriptPubKey[0:6]) == "220020"
 }
 
-func (utxo QtumUTXO) GetType() UTXOScriptType {
+func (utxo KaonUTXO) GetType() UTXOScriptType {
 	if utxo.IsP2PK() {
 		return P2PK
 	} else if utxo.IsP2PKH() {

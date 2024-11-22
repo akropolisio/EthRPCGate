@@ -1,4 +1,4 @@
-package qtum
+package kaon
 
 import (
 	"bytes"
@@ -19,18 +19,18 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/kaonone/eth-rpc-gate/pkg/analytics"
+	"github.com/kaonone/eth-rpc-gate/pkg/blockhash"
 	"github.com/pkg/errors"
-	"github.com/qtumproject/janus/pkg/analytics"
-	"github.com/qtumproject/janus/pkg/blockhash"
 )
 
 var FLAG_GENERATE_ADDRESS_TO = "REGTEST_GENERATE_ADDRESS_TO"
 var FLAG_IGNORE_UNKNOWN_TX = "IGNORE_UNKNOWN_TX"
 var FLAG_DISABLE_SNIPPING_LOGS = "DISABLE_SNIPPING_LOGS"
-var FLAG_HIDE_QTUMD_LOGS = "HIDE_QTUMD_LOGS"
+var FLAG_HIDE_KAOND_LOGS = "HIDE_KAOND_LOGS"
 var FLAG_MATURE_BLOCK_HEIGHT_OVERRIDE = "FLAG_MATURE_BLOCK_HEIGHT_OVERRIDE"
 
-var maximumRequestTime = 10000
+var maximumRequestTime = int((6 * time.Second).Milliseconds())
 var maximumBackoff = (2 * time.Second).Milliseconds()
 
 type ErrorHandler func(context.Context, error) error
@@ -86,18 +86,21 @@ func NewClient(isMain bool, rpcURL string, opts ...func(*Client) error) (*Client
 	}
 
 	tr := &http.Transport{
-		MaxIdleConns:        16,
-		MaxIdleConnsPerHost: 16,
-		MaxConnsPerHost:     16,
-		IdleConnTimeout:     60 * time.Second,
-		DisableKeepAlives:   false,
+		MaxIdleConns:          16,
+		MaxIdleConnsPerHost:   16,
+		MaxConnsPerHost:       16,
+		IdleConnTimeout:       100 * time.Second,
+		TLSHandshakeTimeout:   15 * time.Second,
+		ExpectContinueTimeout: 15 * time.Second,
+		DisableKeepAlives:     false,
 		DialContext: (&net.Dialer{
-			Timeout: 60 * time.Second,
+			Timeout:   120 * time.Second,
+			KeepAlive: 40 * time.Second,
 		}).DialContext,
 	}
 
 	httpClient := &http.Client{
-		Timeout:   10 * time.Second,
+		Timeout:   30 * time.Second,
 		Transport: tr,
 	}
 
@@ -163,7 +166,7 @@ func (c *Client) RequestWithContext(ctx context.Context, method string, params i
 				c.GetDebugLogger().Log("method", method, "params", params, "result", result, "error", err)
 				return errors.Wrap(err, "couldn't unmarshal response result field")
 			}
-			if c.IsDebugEnabled() && !c.GetFlagBool(FLAG_HIDE_QTUMD_LOGS) {
+			if c.IsDebugEnabled() && !c.GetFlagBool(FLAG_HIDE_KAOND_LOGS) {
 				c.printRPCRequest(method, params)
 				c.printCachedRPCResponse(cachedResult)
 			}
@@ -184,6 +187,8 @@ func (c *Client) RequestWithContext(ctx context.Context, method string, params i
 		resp, err = c.Do(ctx, req)
 		if err != nil {
 			errorHandlerErr := c.errorHandler(ctx, err)
+
+			check_timeout := strings.Contains(err.Error(), "context deadline exceeded")
 			retry := false
 			if errorHandlerErr != nil && i != max-1 {
 				// only allow recovering from a specific error once
@@ -191,11 +196,13 @@ func (c *Client) RequestWithContext(ctx context.Context, method string, params i
 					handledErrors[err] = true
 					retry = true
 				}
+			} else if check_timeout && i != max-1 {
+				retry = true
 			}
-			if (retry || strings.Contains(err.Error(), ErrQtumWorkQueueDepth.Error())) && i != max-1 {
+			if (retry || strings.Contains(err.Error(), ErrKaonWorkQueueDepth.Error())) && i != max-1 {
 				requestString := marshalToString(req)
 				backoffTime := computeBackoff(i, true)
-				c.GetLogger().Log("msg", fmt.Sprintf("QTUM process busy, backing off for %f seconds", backoffTime.Seconds()), "request", requestString)
+				c.GetLogger().Log("msg", fmt.Sprintf("Kaon process busy, backing off for %f seconds", backoffTime.Seconds()), "request", requestString)
 				// TODO check if this works as expected
 				var done <-chan struct{}
 				if c.ctx != nil {
@@ -208,10 +215,10 @@ func (c *Client) RequestWithContext(ctx context.Context, method string, params i
 				case <-done:
 					return errors.WithMessage(ctx.Err(), "context cancelled")
 				}
-				c.GetLogger().Log("msg", "Retrying QTUM command")
+				c.GetLogger().Log("msg", "Retrying Kaon command")
 			} else {
 				if i != 0 {
-					c.GetLogger().Log("msg", fmt.Sprintf("Giving up on QTUM RPC call after %d tries since its busy", i+1))
+					c.GetLogger().Log("msg", fmt.Sprintf("Giving up on Kaon RPC call after %d tries since its busy", i+1))
 				}
 				return err
 			}
@@ -244,8 +251,8 @@ func (c *Client) Do(ctx context.Context, req *JSONRPCRequest) (*SuccessJSONRPCRe
 
 	debugLogger.Log("method", req.Method)
 
-	if c.IsDebugEnabled() && !c.GetFlagBool(FLAG_HIDE_QTUMD_LOGS) && c.logWriter != nil {
-		fmt.Fprintf(c.logWriter, "=> qtum RPC request\n%s\n", reqBody)
+	if c.IsDebugEnabled() && !c.GetFlagBool(FLAG_HIDE_KAOND_LOGS) && c.logWriter != nil {
+		fmt.Fprintf(c.logWriter, "=> Kaon RPC request\n%s\n", reqBody)
 	}
 
 	respBody, err := c.do(ctx, bytes.NewReader(reqBody))
@@ -254,7 +261,7 @@ func (c *Client) Do(ctx context.Context, req *JSONRPCRequest) (*SuccessJSONRPCRe
 		return nil, errors.Wrap(err, "Client#do")
 	}
 
-	if c.IsDebugEnabled() && !c.GetFlagBool(FLAG_HIDE_QTUMD_LOGS) {
+	if c.IsDebugEnabled() && !c.GetFlagBool(FLAG_HIDE_KAOND_LOGS) {
 		formattedBody, err := ReformatJSON(respBody)
 		formattedBodyStr := string(formattedBody)
 		if !c.GetFlagBool(FLAG_DISABLE_SNIPPING_LOGS) {
@@ -265,24 +272,25 @@ func (c *Client) Do(ctx context.Context, req *JSONRPCRequest) (*SuccessJSONRPCRe
 		}
 
 		if err == nil && c.logWriter != nil {
-			fmt.Fprintf(c.logWriter, "<= qtum RPC response\n%s\n", formattedBodyStr)
+			fmt.Fprintf(c.logWriter, "<= Kaon RPC response\n%s\n", formattedBodyStr)
 		}
 	}
 
 	res, err := c.responseBodyToResult(respBody)
 	if err != nil {
 		defer c.failure()
-		if len(respBody) == 0 {
+		if respBody == nil || len(respBody) == 0 {
 			debugLogger.Log("Empty response")
 			return nil, errors.Wrap(err, "empty response")
 		}
 		if IsKnownError(err) {
 			return nil, err
 		}
-		if string(respBody) == ErrQtumWorkQueueDepth.Error() {
-			// QTUM http server queue depth reached, need to retry
-			return nil, ErrQtumWorkQueueDepth
+		if string(respBody) == ErrKaonWorkQueueDepth.Error() {
+			// Kaon http server queue depth reached, need to retry
+			return nil, ErrKaonWorkQueueDepth
 		}
+
 		if strings.Contains(string(respBody), "503 Service Unavailable") {
 			// server was shutdown
 			debugLogger.Log("msg", "Server responded with 503")
@@ -353,7 +361,7 @@ func (c *Client) do(ctx context.Context, body io.Reader) ([]byte, error) {
 
 	reader, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, errors.Wrap(err, "ioutil error in qtum client package")
+		return nil, errors.Wrap(err, "ioutil error in kaon client package")
 	}
 	return reader, nil
 }
@@ -438,7 +446,7 @@ func SetLogWriter(logWriter io.Writer) func(*Client) error {
 
 func SetLogger(l log.Logger) func(*Client) error {
 	return func(c *Client) error {
-		c.logger = log.WithPrefix(l, "component", "qtum.Client")
+		c.logger = log.WithPrefix(l, "component", "kaon.Client")
 		return nil
 	}
 }
@@ -466,16 +474,16 @@ func SetIgnoreUnknownTransactions(ignore bool) func(*Client) error {
 	}
 }
 
-func SetDisableSnippingQtumRpcOutput(disable bool) func(*Client) error {
+func SetDisableSnippingKaonRpcOutput(disable bool) func(*Client) error {
 	return func(c *Client) error {
 		c.SetFlag(FLAG_DISABLE_SNIPPING_LOGS, !disable)
 		return nil
 	}
 }
 
-func SetHideQtumdLogs(hide bool) func(*Client) error {
+func SetHideKaondLogs(hide bool) func(*Client) error {
 	return func(c *Client) error {
-		c.SetFlag(FLAG_HIDE_QTUMD_LOGS, hide)
+		c.SetFlag(FLAG_HIDE_KAOND_LOGS, hide)
 		return nil
 	}
 }
@@ -616,13 +624,13 @@ func checkRPCURL(u string) error {
 		return errors.New("RPC URL must be set")
 	}
 
-	qtumRPC, err := url.Parse(u)
+	kaonRPC, err := url.Parse(u)
 	if err != nil {
-		return errors.Errorf("QTUM_RPC URL: %s", u)
+		return errors.Errorf("KAON_RPC URL: %s", u)
 	}
 
-	if qtumRPC.User == nil {
-		return errors.Errorf("QTUM_RPC URL (must specify user & password): %s", u)
+	if kaonRPC.User == nil {
+		return errors.Errorf("KAON_RPC URL (must specify user & password): %s", u)
 	}
 
 	return nil
@@ -639,21 +647,21 @@ func (c *Client) printCachedRPCResponse(cachedResponse []byte) {
 	}
 
 	if err == nil && c.logWriter != nil {
-		fmt.Fprintf(c.logWriter, "<= qtum (CACHED) RPC response\n%s\n", formattedBodyStr)
+		fmt.Fprintf(c.logWriter, "<= Kaon (CACHED) RPC response\n%s\n", formattedBodyStr)
 	}
 }
 
 func (c *Client) printRPCRequest(method string, params interface{}) {
 	req, err := c.NewRPCRequest(method, params)
 	if err != nil {
-		fmt.Fprintf(c.logWriter, "=> qtum RPC request\n%s\n", err.Error())
+		fmt.Fprintf(c.logWriter, "=> Kaon RPC request\n%s\n", err.Error())
 	}
 	reqBody, err := json.MarshalIndent(req, "", "  ")
 	if err != nil {
-		fmt.Fprintf(c.logWriter, "=> qtum RPC request\n%s\n", err.Error())
+		fmt.Fprintf(c.logWriter, "=> Kaon RPC request\n%s\n", err.Error())
 	}
 
 	debugLogger := c.GetDebugLogger()
 	debugLogger.Log("method", req.Method)
-	fmt.Fprintf(c.logWriter, "=> qtum RPC request\n%s\n", reqBody)
+	fmt.Fprintf(c.logWriter, "=> Kaon RPC request\n%s\n", reqBody)
 }

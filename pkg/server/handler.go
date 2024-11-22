@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/notifier"
 	"github.com/labstack/echo"
 	"github.com/pkg/errors"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/notifier"
-	"github.com/qtumproject/janus/pkg/qtum"
 
 	"github.com/gorilla/websocket"
 )
@@ -49,7 +49,7 @@ func httpHandler(c echo.Context) error {
 			defer cc.ethAnalytics.Failure()
 		}
 		if err.Error() == nil {
-			cc.GetErrorLogger().Log("err", err.Error())
+			cc.GetErrorLogger().Log("err", err.Message())
 			return cc.JSONRPCError(err)
 		}
 
@@ -57,7 +57,7 @@ func httpHandler(c echo.Context) error {
 	}
 
 	// Allow transformer to return an explicit JSON error
-	if jerr, isJSONErr := result.(eth.JSONRPCError); isJSONErr {
+	if jerr, isJSONErr := result.(*eth.JSONRPCError); isJSONErr {
 		if cc.ethAnalytics != nil {
 			defer cc.ethAnalytics.Failure()
 		}
@@ -246,7 +246,7 @@ func getRpcResponses(c echo.Context, cc *myCtx, rpcReqs []eth.JSONRPCRequest) ([
 		}
 
 		// Allow transformer to return an explicit JSON error
-		if jerr, isJSONErr := response.(eth.JSONRPCError); isJSONErr {
+		if jerr, isJSONErr := response.(*eth.JSONRPCError); isJSONErr {
 			response = cc.GetJSONRPCError(jerr)
 		} else {
 			var err error
@@ -362,8 +362,8 @@ func websocketHandler(c echo.Context) error {
 			notifier.ResponseSent()
 
 			if cc.IsDebugEnabled() {
-				reqBody, err := qtum.ReformatJSON(req)
-				resBody, err := qtum.ReformatJSON(responseBytes)
+				reqBody, err := kaon.ReformatJSON(req)
+				resBody, err := kaon.ReformatJSON(responseBytes)
 				if err == nil {
 					cc.GetDebugLogger().Log("msg", "ETH WEBSOCKET RPC")
 					fmt.Fprintf(cc.GetLogWriter(), "=> ETH request\n%s\n", reqBody)

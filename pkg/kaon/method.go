@@ -1,11 +1,13 @@
-package qtum
+package kaon
 
 import (
 	"context"
 	"encoding/json"
 	"math/big"
 
-	"github.com/qtumproject/janus/pkg/utils"
+	"github.com/pkg/errors"
+
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 )
 
 type Method struct {
@@ -63,6 +65,26 @@ func (m *Method) SignMessage(addr string, msg string) (string, error) {
 	}
 
 	return signature, nil
+}
+
+func (m *Method) GetTransactionHashByEthHash(ctx context.Context, txID string) (*GetTransactionHashByEthHashResponse, error) {
+	var (
+		req = GetTransactionHashByEthHashRequest{
+			TxID: txID,
+		}
+		resp = new(GetTransactionHashByEthHashResponse)
+	)
+	err := m.RequestWithContext(ctx, MethodGetTransactionHashByEthHash, &req, resp)
+	if err != nil {
+		if m.IsDebugEnabled() {
+			m.GetDebugLogger().Log("function", "MethodGetTransactionHashByEthHash", "Transaction ID", txID, "error", err)
+		}
+		return nil, err
+	}
+	if m.IsDebugEnabled() {
+		m.GetDebugLogger().Log("function", "MethodGetTransactionHashByEthHash", "Transaction ID", txID, "result", marshalToString(resp))
+	}
+	return resp, nil
 }
 
 func (m *Method) GetTransaction(ctx context.Context, txID string) (*GetTransactionResponse, error) {
@@ -139,9 +161,9 @@ func (m *Method) DecodeRawTransaction(ctx context.Context, hex string) (*Decoded
 func (m *Method) GetTransactionOut(ctx context.Context, hash string, voutNumber int, mempoolIncluded bool) (*GetTransactionOutResponse, error) {
 	var (
 		req = GetTransactionOutRequest{
-			Hash:            hash,
-			VoutNumber:      voutNumber,
-			MempoolIncluded: mempoolIncluded,
+			hash,
+			voutNumber,
+			mempoolIncluded,
 		}
 		resp = new(GetTransactionOutResponse)
 	)
@@ -186,15 +208,24 @@ func (m *Method) GetMining(ctx context.Context) (resp *GetMiningResponse, err er
 	return
 }
 
-// hard coded for now as there is only the minimum gas price
-func (m *Method) GetGasPrice(ctx context.Context) (*big.Int, error) {
-	// 40 satoshi
-	minimumGas := big.NewInt(0x28)
-	m.GetDebugLogger().Log("Message", "GetGasPrice is hardcoded to "+minimumGas.String())
-	return minimumGas, nil
+func (m *Method) GetGasPrice(ctx context.Context) (result *big.Int, err error) {
+	var resp GetBlockCountResponse
+	err = m.RequestWithContext(ctx, MethodGasPrice, nil, &resp)
+	if err != nil && m.IsDebugEnabled() {
+		m.GetDebugLogger().Log("function", "GetGasPrice", "error", err)
+		// rollback to default
+		// 1 CENT (gwei)
+		result = big.NewInt(1e9)
+	} else {
+		result = resp.Int
+		m.GetDebugLogger().Log("function", "GetGasPrice", "msg", "got gas price", "gasPrice", result)
+	}
+
+	m.GetDebugLogger().Log("Message", "GetGasPrice is "+result.String())
+	return result, nil
 }
 
-// hard coded 0x1 due to the unique nature of Qtums UTXO system, might
+// hard coded 0x1 due to the unique nature of Kaons UTXO system, might
 func (m *Method) GetTransactionCount(ctx context.Context, address string, status string) (*big.Int, error) {
 	// eventually might work this out to see if there's any transactions pending for an address in the mempool
 	// for now just always return 1
@@ -218,6 +249,7 @@ func (m *Method) GetBlockChainInfo(ctx context.Context) (resp GetBlockChainInfoR
 	if err != nil && m.IsDebugEnabled() {
 		m.GetDebugLogger().Log("function", "GetBlockChainInfo", "error", err)
 	}
+
 	return resp, err
 }
 
@@ -232,10 +264,14 @@ func (m *Method) GetBlockHeader(ctx context.Context, hash string) (resp *GetBloc
 	return
 }
 
-func (m *Method) GetBlock(ctx context.Context, hash string) (resp *GetBlockResponse, err error) {
+func (m *Method) GetBlock(ctx context.Context, hash string, fullTransaction bool) (resp *GetBlockResponse, err error) {
 	req := GetBlockRequest{
-		Hash: hash,
+		Hash:      hash,
+		Verbosity: true,
 	}
+	// if fullTransaction { // false not supported now
+	// 	req.Verbosity = true
+	// }
 	err = m.RequestWithContext(ctx, MethodGetBlock, &req, &resp)
 	if err != nil && m.IsDebugEnabled() {
 		m.GetDebugLogger().Log("function", "GetBlock", "Hash", hash, "error", err)
@@ -248,8 +284,7 @@ func (m *Method) Generate(ctx context.Context, blockNum int, maxTries *int) (res
 	var qAddress string
 
 	if len(m.Accounts) == 0 && generateToAccount == nil {
-		// return nil, errors.New("you must specify QTUM accounts")
-		qAddress = "qW28njWueNpBXYWj2KDmtFG2gbLeALeHfV"
+		return nil, errors.New("you must specify Kaon accounts")
 	} else {
 		if generateToAccount == nil {
 			acc := Account{m.Accounts[0]}
@@ -289,7 +324,7 @@ func (m *Method) Generate(ctx context.Context, blockNum int, maxTries *int) (res
 }
 
 /**
- * Note that QTUM searchlogs api returns all logs in a transaction receipt if any log matches a topic
+ * Note that Kaon searchlogs api returns all logs in a transaction receipt if any log matches a topic
  * While Ethereum behaves differently and will only return logs where topics match
  */
 func (m *Method) SearchLogs(ctx context.Context, req *SearchLogsRequest) (receipts SearchLogsResponse, err error) {
@@ -384,7 +419,7 @@ func (m *Method) GetAddressBalance(ctx context.Context, req *GetAddressBalanceRe
 	return
 }
 
-func (m *Method) SendRawTransaction(ctx context.Context, req *SendRawTransactionRequest) (resp *SendRawTransactionResponse, err error) {
+func (m *Method) SendRawTransaction(ctx context.Context, req *SendRawTransactionRequest) (resp *GeneralSendRawTransactionResponse, err error) {
 	if err := m.RequestWithContext(ctx, MethodSendRawTx, req, &resp); err != nil {
 		if m.IsDebugEnabled() {
 			m.GetDebugLogger().Log("function", "SendRawTransaction", "error", err)
@@ -458,45 +493,6 @@ func (m *Method) LoadWallet(ctx context.Context, req *LoadWalletRequest) (resp *
 	}
 	if m.IsDebugEnabled() {
 		m.GetDebugLogger().Log("function", "LoadWallet", "msg", "Successfully loaded wallet")
-	}
-	return
-}
-
-func (m *Method) UnloadWallet(ctx context.Context, req *UnloadWalletRequest) (resp *UnloadWalletResponse, err error) {
-	if err := m.RequestWithContext(ctx, MethodUnloadWallet, *req, &resp); err != nil {
-		if m.IsDebugEnabled() {
-			m.GetDebugLogger().Log("function", "UnloadWallet", "error", err)
-		}
-		return nil, err
-	}
-	if m.IsDebugEnabled() {
-		m.GetDebugLogger().Log("function", "UnloadWallet", "msg", "Successfully unloaded wallet")
-	}
-	return
-}
-
-func (m *Method) ListWallets(ctx context.Context, req *ListWalletsRequest) (resp *ListWalletsResponse, err error) {
-	if err := m.RequestWithContext(ctx, MethodListWallets, *req, &resp); err != nil {
-		if m.IsDebugEnabled() {
-			m.GetDebugLogger().Log("function", "ListWallets", "error", err)
-		}
-		return nil, err
-	}
-	if m.IsDebugEnabled() {
-		m.GetDebugLogger().Log("function", "ListWallets", "msg", "Successfully listed wallets")
-	}
-	return
-}
-
-func (m *Method) ListWalletDir(ctx context.Context, req *ListWalletDirRequest) (resp *ListWalletDirResponse, err error) {
-	if err := m.RequestWithContext(ctx, MethodListWalletDir, *req, &resp); err != nil {
-		if m.IsDebugEnabled() {
-			m.GetDebugLogger().Log("function", "ListWalletDir", "error", err)
-		}
-		return nil, err
-	}
-	if m.IsDebugEnabled() {
-		m.GetDebugLogger().Log("function", "ListWalletDir", "msg", "Successfully listed wallet directory")
 	}
 	return
 }

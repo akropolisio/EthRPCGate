@@ -1,11 +1,11 @@
-package qtum
+package kaon
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
 
-	"github.com/qtumproject/janus/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
 )
 
 const (
@@ -13,42 +13,41 @@ const (
 )
 
 const (
-	MethodGetHexAddress         = "gethexaddress"
-	MethodFromHexAddress        = "fromhexaddress"
-	MethodSendToContract        = "sendtocontract"
-	MethodGetTransactionReceipt = "gettransactionreceipt"
-	MethodGetTransaction        = "gettransaction"
-	MethodGetPeerInfo           = "getpeerinfo"
-	MethodGetNetworkInfo        = "getnetworkinfo"
-	MethodGetRawTransaction     = "getrawtransaction"
-	MethodCreateContract        = "createcontract"
-	MethodSendToAddress         = "sendtoaddress"
-	MethodCallContract          = "callcontract"
-	MethodDecodeRawTransaction  = "decoderawtransaction"
-	MethodGetTransactionOut     = "gettxout"
-	MethodGetBlockCount         = "getblockcount"
-	MethodGetBlockChainInfo     = "getblockchaininfo"
-	MethodSearchLogs            = "searchlogs"
-	MethodWaitForLogs           = "waitforlogs"
-	MethodGetBlockHash          = "getblockhash"
-	MethodGetBlockHeader        = "getblockheader"
-	MethodGetBlock              = "getblock"
-	MethodGetAddressesByAccount = "getaddressesbyaccount"
-	MethodGetAccountInfo        = "getaccountinfo"
-	MethodGenerateToAddress     = "generatetoaddress"
-	MethodListUnspent           = "listunspent"
-	MethodGetStorage            = "getstorage"
-	MethodCreateRawTx           = "createrawtransaction"
-	MethodSignRawTx             = "signrawtransactionwithwallet"
-	MethodSendRawTx             = "sendrawtransaction"
-	MethodGetStakingInfo        = "getstakinginfo"
-	MethodGetAddressBalance     = "getaddressbalance"
-	MethodGetAddressUTXOs       = "getaddressutxos"
-	MethodCreateWallet          = "createwallet"
-	MethodLoadWallet            = "loadwallet"
-	MethodUnloadWallet          = "unloadwallet"
-	MethodListWallets           = "listwallets"
-	MethodListWalletDir         = "listwalletdir"
+	MethodGetHexAddress               = "gethexaddress"
+	MethodFromHexAddress              = "fromhexaddress"
+	MethodSendToContract              = "sendtocontract"
+	MethodGetTransactionReceipt       = "gettransactionreceipt"
+	MethodGetTransaction              = "gettransaction"
+	MethodGetTransactionHashByEthHash = "gettxidbyethhash"
+	MethodGetPeerInfo                 = "getpeerinfo"
+	MethodGetNetworkInfo              = "getnetworkinfo"
+	MethodGetRawTransaction           = "getrawtransaction"
+	MethodCreateContract              = "createcontract"
+	MethodSendToAddress               = "sendtoaddress"
+	MethodCallContract                = "callcontract"
+	MethodGasPrice                    = "gasprice"
+	MethodDecodeRawTransaction        = "decoderawtransaction"
+	MethodGetTransactionOut           = "gettxout"
+	MethodGetBlockCount               = "getblockcount"
+	MethodGetBlockChainInfo           = "getblockchaininfo"
+	MethodSearchLogs                  = "searchlogs"
+	MethodWaitForLogs                 = "waitforlogs"
+	MethodGetBlockHash                = "getblockhash"
+	MethodGetBlockHeader              = "getblockheader"
+	MethodGetBlock                    = "getblock"
+	MethodGetAddressesByAccount       = "getaddressesbyaccount"
+	MethodGetAccountInfo              = "getaccountinfo"
+	MethodGenerateToAddress           = "generatetoaddress"
+	MethodListUnspent                 = "listunspent"
+	MethodGetStorage                  = "getstorage"
+	MethodCreateRawTx                 = "createrawtransaction"
+	MethodSignRawTx                   = "signrawtransactionwithwallet"
+	MethodSendRawTx                   = "sendrawtransaction"
+	MethodGetStakingInfo              = "getstakinginfo"
+	MethodGetAddressBalance           = "getaddressbalance"
+	MethodGetAddressUTXOs             = "getaddressutxos"
+	MethodCreateWallet                = "createwallet"
+	MethodLoadWallet                  = "loadwallet"
 )
 
 type JSONRPCRequest struct {
@@ -77,7 +76,7 @@ type JSONRPCError struct {
 }
 
 func (err *JSONRPCError) Error() string {
-	return fmt.Sprintf("qtum [code: %d] %s", err.Code, err.Message)
+	return fmt.Sprintf("Kaon [code: %d] %s", err.Code, err.Message)
 }
 
 // Tries to associate returned error with one of already known (implemented) errors,
@@ -104,7 +103,7 @@ func GetErrorCode(err error) int {
 	return errorCode
 }
 
-func GetErrorResponse(err error) eth.JSONRPCError {
+func GetErrorResponse(err error) *eth.JSONRPCError {
 	errorCode := GetErrorCode(err)
 	if errorCode == 0 {
 		return nil
@@ -116,7 +115,7 @@ func GetErrorResponse(err error) eth.JSONRPCError {
 var (
 	errorCodeMap   = map[int]error{}
 	errorToCodeMap = map[error]int{}
-	// taken from https://github.com/qtumproject/qtum/blob/master/src/rpc/protocol.h
+	// taken from https://github.com/kaonaonkaonb/master/src/rpc/protocol.h
 	// Standard JSON-RPC 2.0 errors
 	ErrInvalidRequest = errors.New("invalid request") // -32600
 	// RPC_METHOD_NOT_FOUND is internally mapped to HTTP_NOT_FOUND (404).
@@ -173,9 +172,9 @@ var (
 	ErrForbiddenBySafeMode = errors.New("server is in safe mode, and command is not allowed in safe mode") // -2
 
 	// Http server work queue is full, returned as a raw string, not inside a JSON response
-	ErrQtumWorkQueueDepth = errors.New("Work queue depth exceeded")
-	// Sometimes truffle is too quick for qtumd and truffle gives up after one error
-	// couldn't proxy eth_blockNumber request: Client#do: Post \"***qtum:3889\": dial tcp: lookup qtum: Try again
+	ErrKaonWorkQueueDepth = errors.New("Work queue depth exceeded")
+	// Sometimes truffle is too quick for kaond and truffle gives up after one error
+	// couldn't proxy eth_blockNumber request: Client#do: Post \"***kaon:51474\": dial tcp: lookup kaon: Try again
 	ErrTryAgain = errors.New("Try again")
 	// TODO: add
 	// - insufficient balance

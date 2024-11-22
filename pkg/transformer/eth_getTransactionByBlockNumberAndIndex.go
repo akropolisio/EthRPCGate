@@ -5,21 +5,21 @@ import (
 	"encoding/json"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
 )
 
 // ProxyETHGetTransactionByBlockNumberAndIndex implements ETHProxy
 type ProxyETHGetTransactionByBlockNumberAndIndex struct {
-	*qtum.Qtum
+	*kaon.Kaon
 }
 
 func (p *ProxyETHGetTransactionByBlockNumberAndIndex) Method() string {
 	return "eth_getTransactionByBlockNumberAndIndex"
 }
 
-func (p *ProxyETHGetTransactionByBlockNumberAndIndex) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetTransactionByBlockNumberAndIndex) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	var req eth.GetTransactionByBlockNumberAndIndex
 	if err := json.Unmarshal(rawreq.Params, &req); err != nil {
 		// TODO: Correct error code?
@@ -33,19 +33,19 @@ func (p *ProxyETHGetTransactionByBlockNumberAndIndex) Request(rawreq *eth.JSONRP
 	return p.request(c.Request().Context(), &req)
 }
 
-func (p *ProxyETHGetTransactionByBlockNumberAndIndex) request(ctx context.Context, req *eth.GetTransactionByBlockNumberAndIndex) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetTransactionByBlockNumberAndIndex) request(ctx context.Context, req *eth.GetTransactionByBlockNumberAndIndex) (interface{}, *eth.JSONRPCError) {
 	// Decoded by ProxyETHGetTransactionByBlockHashAndIndex, quickly decode so we can fail cheaply without making any calls
 	_, decodeErr := hexutil.DecodeUint64(req.TransactionIndex)
 	if decodeErr != nil {
 		return nil, eth.NewInvalidParamsError("invalid argument 1")
 	}
 
-	blockNum, err := getBlockNumberByParam(ctx, p.Qtum, req.BlockNumber, false)
+	blockNum, err := getBlockNumberByParam(ctx, p.Kaon, req.BlockNumber, false)
 	if err != nil {
 		return nil, eth.NewCallbackError("couldn't get block number by parameter")
 	}
 
-	blockHash, err := proxyETHGetBlockByHash(ctx, p, p.Qtum, blockNum)
+	blockHash, err := proxyETHGetBlockByHash(ctx, p, p.Kaon, blockNum)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (p *ProxyETHGetTransactionByBlockNumberAndIndex) request(ctx context.Contex
 			BlockHash:        string(*blockHash),
 			TransactionIndex: req.TransactionIndex,
 		}
-		proxy = &ProxyETHGetTransactionByBlockHashAndIndex{Qtum: p.Qtum}
+		proxy = &ProxyETHGetTransactionByBlockHashAndIndex{Kaon: p.Kaon}
 	)
 	return proxy.request(ctx, getBlockByHashReq)
 }

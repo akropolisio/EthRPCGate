@@ -7,22 +7,24 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/kaonone/eth-rpc-gate/pkg/analytics"
+	"github.com/kaonone/eth-rpc-gate/pkg/blockhash"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/transformer"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/analytics"
-	"github.com/qtumproject/janus/pkg/blockhash"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/transformer"
 )
 
 type myCtx struct {
 	echo.Context
-	rpcReq        *eth.JSONRPCRequest
-	logWriter     io.Writer
-	logger        log.Logger
-	transformer   *transformer.Transformer
-	blockHash     *blockhash.BlockHash
-	qtumAnalytics *analytics.Analytics
-	ethAnalytics  *analytics.Analytics
+	rpcReq      *eth.JSONRPCRequest
+	logWriter   io.Writer
+	logger      log.Logger
+	transformer *transformer.Transformer
+	blockHash   *blockhash.BlockHash
+
+	healthCheckPercent *int
+	kaonAnalytics      *analytics.Analytics
+	ethAnalytics       *analytics.Analytics
 }
 
 func (c *myCtx) GetJSONRPCResult(result interface{}) (*eth.JSONRPCResult, error) {
@@ -38,7 +40,7 @@ func (c *myCtx) JSONRPCResult(result interface{}) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-func (c *myCtx) GetJSONRPCError(err eth.JSONRPCError) *eth.JSONRPCResult {
+func (c *myCtx) GetJSONRPCError(err *eth.JSONRPCError) *eth.JSONRPCResult {
 	var id json.RawMessage
 	if c.rpcReq != nil && c.rpcReq.ID != nil {
 		id = c.rpcReq.ID
@@ -50,8 +52,8 @@ func (c *myCtx) GetJSONRPCError(err eth.JSONRPCError) *eth.JSONRPCResult {
 	}
 }
 
-func (c *myCtx) JSONRPCError(err eth.JSONRPCError) error {
-	resp := c.GetJSONRPCError(err)
+func (c *myCtx) JSONRPCError(errIn *eth.JSONRPCError) error {
+	resp := c.GetJSONRPCError(errIn)
 
 	if !c.Response().Committed {
 		err := c.JSON(http.StatusOK, resp)

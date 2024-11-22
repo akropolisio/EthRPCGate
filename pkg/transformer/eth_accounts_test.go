@@ -2,12 +2,13 @@ package transformer
 
 import (
 	"encoding/json"
+	"math/big"
 	"testing"
 
 	"github.com/btcsuite/btcutil"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 )
 
 func TestAccountRequest(t *testing.T) {
@@ -18,7 +19,7 @@ func TestAccountRequest(t *testing.T) {
 	}
 
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,10 +33,10 @@ func TestAccountRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	qtumClient.Accounts = append(qtumClient.Accounts, exampleAcc1, exampleAcc2)
+	kaonClient.Accounts = append(kaonClient.Accounts, exampleAcc1, exampleAcc2)
 
 	//preparing proxy & executing request
-	proxyEth := ProxyETHAccounts{qtumClient}
+	proxyEth := ProxyETHAccounts{kaonClient}
 	got, jsonErr := proxyEth.Request(request, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr.Error())
@@ -48,12 +49,12 @@ func TestAccountRequest(t *testing.T) {
 
 func TestAccountMethod(t *testing.T) {
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 	if err != nil {
 		t.Fatal(err)
 	}
 	//preparing proxy & executing request
-	proxyEth := ProxyETHAccounts{qtumClient}
+	proxyEth := ProxyETHAccounts{kaonClient}
 	got := proxyEth.Method()
 
 	want := string("eth_accounts")
@@ -62,22 +63,22 @@ func TestAccountMethod(t *testing.T) {
 }
 func TestAccountToResponse(t *testing.T) {
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxyEth := ProxyETHAccounts{qtumClient}
-	callResponse := qtum.CallContractResponse{
+	proxyEth := ProxyETHAccounts{kaonClient}
+	callResponse := kaon.CallContractResponse{
 		ExecutionResult: struct {
-			GasUsed         int    `json:"gasUsed"`
-			Excepted        string `json:"excepted"`
-			ExceptedMessage string `json:"exceptedMessage"`
-			NewAddress      string `json:"newAddress"`
-			Output          string `json:"output"`
-			CodeDeposit     int    `json:"codeDeposit"`
-			GasRefunded     int    `json:"gasRefunded"`
-			DepositSize     int    `json:"depositSize"`
-			GasForDeposit   int    `json:"gasForDeposit"`
+			GasUsed         big.Int `json:"gasUsed"`
+			Excepted        string  `json:"excepted"`
+			ExceptedMessage string  `json:"exceptedMessage"`
+			NewAddress      string  `json:"newAddress"`
+			Output          string  `json:"output"`
+			CodeDeposit     int     `json:"codeDeposit"`
+			GasRefunded     big.Int `json:"gasRefunded"`
+			DepositSize     int     `json:"depositSize"`
+			GasForDeposit   big.Int `json:"gasForDeposit"`
 		}{
 			Output: "0x0000000000000000000000000000000000000000000000000000000000000002",
 		},

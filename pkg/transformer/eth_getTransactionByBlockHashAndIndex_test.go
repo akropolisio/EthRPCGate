@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 )
 
-func initializeProxyETHGetTransactionByBlockHashAndIndex(qtumClient *qtum.Qtum) ETHProxy {
-	return &ProxyETHGetTransactionByBlockHashAndIndex{qtumClient}
+func initializeProxyETHGetTransactionByBlockHashAndIndex(kaonClient *kaon.Kaon) ETHProxy {
+	return &ProxyETHGetTransactionByBlockHashAndIndex{kaonClient}
 }
 
 func TestGetTransactionByBlockHashAndIndex(t *testing.T) {

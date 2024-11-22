@@ -3,22 +3,22 @@ package transformer
 import (
 	"context"
 
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
 )
 
 // ProxyETHGetCode implements ETHProxy
 type ProxyETHGetCode struct {
-	*qtum.Qtum
+	*kaon.Kaon
 }
 
 func (p *ProxyETHGetCode) Method() string {
 	return "eth_getCode"
 }
 
-func (p *ProxyETHGetCode) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetCode) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	var req eth.GetCodeRequest
 	if err := unmarshalRequest(rawreq.Params, &req); err != nil {
 		// TODO: Correct error code?
@@ -28,12 +28,12 @@ func (p *ProxyETHGetCode) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (i
 	return p.request(c.Request().Context(), &req)
 }
 
-func (p *ProxyETHGetCode) request(ctx context.Context, ethreq *eth.GetCodeRequest) (eth.GetCodeResponse, eth.JSONRPCError) {
-	qtumreq := qtum.GetAccountInfoRequest(utils.RemoveHexPrefix(ethreq.Address))
+func (p *ProxyETHGetCode) request(ctx context.Context, ethreq *eth.GetCodeRequest) (eth.GetCodeResponse, *eth.JSONRPCError) {
+	kaonreq := kaon.GetAccountInfoRequest(utils.RemoveHexPrefix(ethreq.Address))
 
-	qtumresp, err := p.GetAccountInfo(ctx, &qtumreq)
+	kaonresp, err := p.GetAccountInfo(ctx, &kaonreq)
 	if err != nil {
-		if err == qtum.ErrInvalidAddress {
+		if err == kaon.ErrInvalidAddress {
 			/**
 			// correct response for an invalid address
 			{
@@ -48,6 +48,6 @@ func (p *ProxyETHGetCode) request(ctx context.Context, ethreq *eth.GetCodeReques
 		}
 	}
 
-	// qtum res -> eth res
-	return eth.GetCodeResponse(utils.AddHexPrefix(qtumresp.Code)), nil
+	// kaon res -> eth res
+	return eth.GetCodeResponse(utils.AddHexPrefix(kaonresp.Code)), nil
 }

@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
-func TestEthValueToQtumAmount(t *testing.T) {
+func TestEthValueToKaonAmount(t *testing.T) {
 	cases := []map[string]interface{}{
 		{
 			"in":   "0xde0b6b3a7640000",
@@ -35,7 +35,7 @@ func TestEthValueToQtumAmount(t *testing.T) {
 	for _, c := range cases {
 		in := c["in"].(string)
 		want := c["want"].(decimal.Decimal)
-		got, err := EthValueToQtumAmount(in, MinimumGas)
+		got, err := EthValueToKaonAmount(in, MinimumGas)
 		if err != nil {
 			t.Error(err)
 		}
@@ -47,7 +47,7 @@ func TestEthValueToQtumAmount(t *testing.T) {
 	}
 }
 
-func TestQtumValueToEthAmount(t *testing.T) {
+func TestKaonValueToEthAmount(t *testing.T) {
 	cases := []decimal.Decimal{
 		decimal.NewFromFloat(1),
 		decimal.NewFromFloat(0.5),
@@ -56,19 +56,19 @@ func TestQtumValueToEthAmount(t *testing.T) {
 	}
 	for _, c := range cases {
 		in := c
-		eth := QtumDecimalValueToETHAmount(in)
-		out := EthDecimalValueToQtumAmount(eth)
+		eth := KaonDecimalValueToETHAmount(in)
+		out := EthDecimalValueToKaonAmount(eth)
 
 		// TODO: Refactor to use new testing utilities?
 		if !in.Equals(out) {
-			t.Errorf("in: %s, eth: %v, qtum: %v", in, eth, out)
+			t.Errorf("in: %s, eth: %v, kaon: %v", in, eth, out)
 		}
 	}
 }
 
-func TestQtumAmountToEthValue(t *testing.T) {
+func TestKaonAmountToEthValue(t *testing.T) {
 	in, want := decimal.NewFromFloat(0.1), "0x16345785d8a0000"
-	got, err := formatQtumAmount(in)
+	got, err := formatKaonAmount(in)
 	if err != nil {
 		t.Error(err)
 	}
@@ -76,9 +76,9 @@ func TestQtumAmountToEthValue(t *testing.T) {
 	internal.CheckTestResultUnspecifiedInputMarshal(in, want, got, t, false)
 }
 
-func TestLowestQtumAmountToEthValue(t *testing.T) {
+func TestLowestKaonAmountToEthValue(t *testing.T) {
 	in, want := decimal.NewFromFloat(0.00000001), "0x2540be400"
-	got, err := formatQtumAmount(in)
+	got, err := formatKaonAmount(in)
 	if err != nil {
 		t.Error(err)
 	}
@@ -90,49 +90,49 @@ func TestAddressesConversion(t *testing.T) {
 	t.Parallel()
 
 	inputs := []struct {
-		qtumChain   string
+		kaonChain   string
 		ethAddress  string
-		qtumAddress string
+		kaonAddress string
 	}{
 		{
-			qtumChain:   qtum.ChainTest,
+			kaonChain:   kaon.ChainTest,
 			ethAddress:  "6c89a1a6ca2ae7c00b248bb2832d6f480f27da68",
-			qtumAddress: "qTTH1Yr2eKCuDLqfxUyBLCAjmomQ8pyrBt",
+			kaonAddress: "uTTH1Yr2eKCuDLqfxUyBLCAjmomQ8pyrBt",
 		},
 
 		// Test cases for addresses defined here:
-		// 	- https://github.com/hayeah/openzeppelin-solidity/blob/qtum/QTUM-NOTES.md#create-test-accounts
+		// 	- https://github.com/hayeah/openzeppelin-solidity/blob/kaon/QTUM-NOTES.md#create-test-accounts
 		//
 		// NOTE: Ethereum addresses are without `0x` prefix, as it expects by conversion functions
 		{
-			qtumChain:   qtum.ChainTest,
-			ethAddress:  "7926223070547d2d15b2ef5e7383e541c338ffe9",
-			qtumAddress: "qUbxboqjBRp96j3La8D1RYkyqx5uQbJPoW",
+			kaonChain:   kaon.ChainTest,
+			ethAddress:  "1CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead",
+			kaonAddress: "ar2SzdHghSgeacypPn7zfDe3qfKAEwimus",
 		},
 		{
-			qtumChain:   qtum.ChainTest,
-			ethAddress:  "2352be3db3177f0a07efbe6da5857615b8c9901d",
-			qtumAddress: "qLn9vqbr2Gx3TsVR9QyTVB5mrMoh4x43Uf",
+			kaonChain:   kaon.ChainTest,
+			ethAddress:  "3f501c368cb9ddb5f27ed72ac0d602724adfa175",
+			kaonAddress: "auASFMxv45WgjCW6wkpDuHWjxXhzNA9mjP",
 		},
 		{
-			qtumChain:   qtum.ChainTest,
-			ethAddress:  "69b004ac2b3993bf2fdf56b02746a1f57997420d",
-			qtumAddress: "qTCCy8qy7pW94EApdoBjYc1vQ2w68UnXPi",
+			kaonChain:   kaon.ChainTest,
+			ethAddress:  "57ed9afd4668ab81b648e68d2a76227434d6a8ee",
+			kaonAddress: "awQb8vf21idkFoZiYPA4hWgtuPyko2qUaR",
 		},
 		{
-			qtumChain:   qtum.ChainTest,
-			ethAddress:  "8c647515f03daeefd09872d7530fa8d8450f069a",
-			qtumAddress: "qWMi6ne9mDQFatRGejxdDYVUV9rQVkAFGp",
+			kaonChain:   kaon.ChainTest,
+			ethAddress:  "1dd46713aa54541c74f4ef391b59b55133f675ec",
+			kaonAddress: "ar7PkgNdY1HkDtUo3D4GTsYrcqoHBJygNQ",
 		},
 		{
-			qtumChain:   qtum.ChainTest,
-			ethAddress:  "2191744eb5ebeac90e523a817b77a83a0058003b",
-			qtumAddress: "qLcshhsRS6HKeTKRYFdpXnGVZxw96QQcfm",
+			kaonChain:   kaon.ChainTest,
+			ethAddress:  "c3530fe16dd1cc69dae31dc6f029ca57feab5536",
+			kaonAddress: "b7CSynDNwb2LQcCWXs8Qn79LUkgMdsK61S",
 		},
 		{
-			qtumChain:   qtum.ChainTest,
-			ethAddress:  "88b0bf4b301c21f8a47be2188bad6467ad556dcf",
-			qtumAddress: "qW28njWueNpBXYWj2KDmtFG2gbLeALeHfV",
+			kaonChain:   kaon.ChainTest,
+			ethAddress:  "6c880fa6feb2a5917bcc1afc8afa0e4f61776a8f",
+			kaonAddress: "ayHXgXugbHDDR8cBjX2ZVLfkGE78QTeW2Z",
 		},
 	}
 
@@ -143,12 +143,12 @@ func TestAddressesConversion(t *testing.T) {
 		)
 		// TODO: Investigate why this testing setup is so different
 		t.Run(testDesc, func(t *testing.T) {
-			qtumAddress, err := convertETHAddress(in.ethAddress, in.qtumChain)
-			require.NoError(t, err, "couldn't convert Ethereum address to Qtum address")
-			require.Equal(t, in.qtumAddress, qtumAddress, "unexpected converted Qtum address value")
+			kaonAddress, err := convertETHAddress(in.ethAddress, in.kaonChain)
+			require.NoError(t, err, "couldn't convert Ethereum address to Kaon address")
+			require.Equal(t, in.kaonAddress, kaonAddress, "unexpected converted Kaon address value")
 
-			ethAddress, err := utils.ConvertQtumAddress(in.qtumAddress)
-			require.NoError(t, err, "couldn't convert Qtum address to Ethereum address")
+			ethAddress, err := utils.ConvertKaonAddress(in.kaonAddress)
+			require.NoError(t, err, "couldn't convert Kaon address to Ethereum address")
 			require.Equal(t, in.ethAddress, ethAddress, "unexpected converted Ethereum address value")
 		})
 	}
@@ -161,13 +161,13 @@ func TestSendTransactionRequestHasDefaultGasPriceAndAmount(t *testing.T) {
 		t.Fatal(err)
 	}
 	defaultGasPriceInWei := req.GasPrice.Int
-	defaultGasPriceInQTUM := EthDecimalValueToQtumAmount(decimal.NewFromBigInt(defaultGasPriceInWei, 1))
+	defaultGasPriceInKAON := EthDecimalValueToKaonAmount(decimal.NewFromBigInt(defaultGasPriceInWei, 1))
 
 	// TODO: Refactor to use new testing utilities?
-	if !defaultGasPriceInQTUM.Equals(MinimumGas) {
-		t.Fatalf("Default gas price does not convert to QTUM minimum gas price, got: %s want: %s", defaultGasPriceInQTUM.String(), MinimumGas.String())
+	if !defaultGasPriceInKAON.Equals(MinimumGas) {
+		t.Fatalf("Default gas price does not convert to KAON minimum gas price, got: %s want: %s", defaultGasPriceInKAON.String(), MinimumGas.String())
 	}
-	if eth.DefaultGasAmountForQtum.String() != req.Gas.Int.String() {
-		t.Fatalf("Default gas amount does not match expected default, got: %s want: %s", req.Gas.Int.String(), eth.DefaultGasAmountForQtum.String())
+	if eth.DefaultGasAmountForKaon.String() != req.Gas.Int.String() {
+		t.Fatalf("Default gas amount does not match expected default, got: %s want: %s", req.Gas.Int.String(), eth.DefaultGasAmountForKaon.String())
 	}
 }

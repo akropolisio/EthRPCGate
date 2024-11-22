@@ -8,22 +8,22 @@ import (
 
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
 )
 
 // ProxyETHGetLogs implements ETHProxy
 type ProxyETHSign struct {
-	*qtum.Qtum
+	*kaon.Kaon
 }
 
 func (p *ProxyETHSign) Method() string {
 	return "eth_sign"
 }
 
-func (p *ProxyETHSign) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHSign) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	var req eth.SignRequest
 	if err := unmarshalRequest(rawreq.Params, &req); err != nil {
 		p.GetDebugLogger().Log("method", p.Method(), "error", err)
@@ -33,7 +33,7 @@ func (p *ProxyETHSign) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (inte
 
 	addr := utils.RemoveHexPrefix(req.Account)
 
-	acc := p.Qtum.Accounts.FindByHexAddress(addr)
+	acc := p.Kaon.Accounts.FindByHexAddress(addr)
 	if acc == nil {
 		p.GetDebugLogger().Log("method", p.Method(), "account", addr, "msg", "Unknown account")
 		return nil, eth.NewInvalidParamsError(fmt.Sprintf("No such account: %s", addr))
@@ -58,12 +58,12 @@ func signMessage(key *btcec.PrivateKey, msg []byte) ([]byte, error) {
 	return btcec.SignCompact(secp256k1, key, msghash, true)
 }
 
-var qtumSignMessagePrefix = []byte("\u0015Qtum Signed Message:\n")
+var kaonSignMessagePrefix = []byte("\u0015Kaon Signed Message:\n")
 
 func paddedMessage(msg []byte) []byte {
 	var wbuf bytes.Buffer
 
-	wbuf.Write(qtumSignMessagePrefix)
+	wbuf.Write(kaonSignMessagePrefix)
 
 	var msglenbuf [binary.MaxVarintLen64]byte
 	msglen := binary.PutUvarint(msglenbuf[:], uint64(len(msg)))

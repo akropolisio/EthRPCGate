@@ -1,4 +1,4 @@
-package qtum
+package kaon
 
 import (
 	"context"
@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/pkg/errors"
-	"github.com/qtumproject/janus/pkg/utils"
 )
 
-type Qtum struct {
+type Kaon struct {
 	*Client
 	*Method
 	chainMutex       sync.RWMutex
@@ -35,12 +35,12 @@ const (
 
 var AllChains = []string{ChainMain, ChainRegTest, ChainTest, ChainAuto, ChainUnknown}
 
-func New(c *Client, chain string) (*Qtum, error) {
+func New(c *Client, chain string) (*Kaon, error) {
 	if !utils.InStrSlice(AllChains, chain) {
-		return nil, errors.Errorf("Invalid qtum chain: '%s'", chain)
+		return nil, errors.Errorf("Invalid Kaon chain: '%s'", chain)
 	}
 
-	qtum := &Qtum{
+	kaon := &Kaon{
 		Client:     c,
 		Method:     &Method{Client: c},
 		chain:      chain,
@@ -49,17 +49,17 @@ func New(c *Client, chain string) (*Qtum, error) {
 
 	c.SetErrorHandler(func(ctx context.Context, err error) error {
 		if errorHandler, ok := errorHandlers[err]; ok {
-			return errorHandler(ctx, qtum, qtum.errorState, qtum.Method)
+			return errorHandler(ctx, kaon.errorState, kaon.Method)
 		}
 		return nil
 	})
 
-	qtum.detectChain()
+	kaon.detectChain()
 
-	return qtum, nil
+	return kaon, nil
 }
 
-func (c *Qtum) detectChain() {
+func (c *Kaon) detectChain() {
 	c.chainMutex.Lock()
 	if c.queryingChain || // already querying
 		(c.chain != ChainAuto && c.chain != "") { // specified in command line arguments
@@ -73,7 +73,7 @@ func (c *Qtum) detectChain() {
 	go c.detectingChain()
 }
 
-func (c *Qtum) detectingChain() {
+func (c *Kaon) detectingChain() {
 	// detect chain we are pointing at
 	for i := 0; ; i++ {
 		blockchainInfo, err := c.GetBlockChainInfo(c.ctx)
@@ -111,7 +111,7 @@ func (c *Qtum) detectingChain() {
 	}
 }
 
-func (c *Qtum) Chain() string {
+func (c *Kaon) Chain() string {
 	c.chainMutex.RLock()
 	queryingChain := c.queryingChain
 	queryingComplete := c.queryingComplete
@@ -134,37 +134,37 @@ func (c *Qtum) Chain() string {
 	return c.chain
 }
 
-func (c *Qtum) ChainId() int {
+func (c *Kaon) ChainId() int {
 	var chainId int
 	switch strings.ToLower(c.Chain()) {
 	case "main":
-		chainId = 81
-	case "test":
-		chainId = 8889
+		chainId = 11987
 	case "regtest":
-		chainId = 8890
+		chainId = 11988
+	case "test":
+		chainId = 11989
 	default:
-		chainId = 8890
+		chainId = 11989
 		c.GetDebugLogger().Log("msg", fmt.Sprintf("Unknown chain %d", chainId))
 	}
 
 	return chainId
 }
 
-func (c *Qtum) GetMatureBlockHeight() int {
+func (c *Kaon) GetMatureBlockHeight() int {
 	blockHeightOverride := c.GetFlagInt(FLAG_MATURE_BLOCK_HEIGHT_OVERRIDE)
 	if blockHeightOverride != nil {
 		return *blockHeightOverride
 	}
 
-	return 2000
+	return 10
 }
 
-func (c *Qtum) CanGenerate() bool {
+func (c *Kaon) CanGenerate() bool {
 	return c.Chain() == ChainRegTest
 }
 
-func (c *Qtum) GenerateIfPossible() {
+func (c *Kaon) GenerateIfPossible() {
 	if !c.CanGenerate() {
 		return
 	}
@@ -179,9 +179,9 @@ func (c *Qtum) GenerateIfPossible() {
 type HexAddressPrefix string
 
 const (
-	PrefixMainChainAddress    HexAddressPrefix = "3a"
-	PrefixTestChainAddress    HexAddressPrefix = "78"
-	PrefixRegTestChainAddress HexAddressPrefix = PrefixTestChainAddress
+	PrefixMainChainAddress    HexAddressPrefix = "UniM" // 0x55 0x6e 0x69 0x4d
+	PrefixTestChainAddress    HexAddressPrefix = "UniT" // 0x55 0x6e 0x69 0x54
+	PrefixRegTestChainAddress HexAddressPrefix = "UniP" // 0x55 0x6e 0x69 0x70
 )
 
 // Returns decoded hexed string prefix, as ready to use slice of bytes

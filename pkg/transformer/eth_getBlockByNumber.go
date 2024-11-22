@@ -4,21 +4,21 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
 )
 
 // ProxyETHGetBlockByNumber implements ETHProxy
 type ProxyETHGetBlockByNumber struct {
-	*qtum.Qtum
+	*kaon.Kaon
 }
 
 func (p *ProxyETHGetBlockByNumber) Method() string {
 	return "eth_getBlockByNumber"
 }
 
-func (p *ProxyETHGetBlockByNumber) Request(rpcReq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetBlockByNumber) Request(rpcReq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	req := new(eth.GetBlockByNumberRequest)
 	if err := unmarshalRequest(rpcReq.Params, req); err != nil {
 		// TODO: Correct error code?
@@ -27,15 +27,15 @@ func (p *ProxyETHGetBlockByNumber) Request(rpcReq *eth.JSONRPCRequest, c echo.Co
 	return p.request(c.Request().Context(), req)
 }
 
-func (p *ProxyETHGetBlockByNumber) request(ctx context.Context, req *eth.GetBlockByNumberRequest) (*eth.GetBlockByNumberResponse, eth.JSONRPCError) {
-	blockNum, err := getBlockNumberByRawParam(ctx, p.Qtum, req.BlockNumber, false)
+func (p *ProxyETHGetBlockByNumber) request(ctx context.Context, req *eth.GetBlockByNumberRequest) (*eth.GetBlockByNumberResponse, *eth.JSONRPCError) {
+	blockNum, err := getBlockNumberByRawParam(ctx, p.Kaon, req.BlockNumber, false)
 	if err != nil {
 		return nil, eth.NewCallbackError("couldn't get block number by parameter")
 	}
 
-	blockHash, jsonErr := proxyETHGetBlockByHash(ctx, p, p.Qtum, blockNum)
+	blockHash, jsonErr := proxyETHGetBlockByHash(ctx, p, p.Kaon, blockNum)
 	if jsonErr != nil {
-		return nil, jsonErr
+		return nil, eth.NewInvalidParamsError(jsonErr.Message())
 	}
 	if blockHash == nil {
 		return nil, nil
@@ -46,11 +46,11 @@ func (p *ProxyETHGetBlockByNumber) request(ctx context.Context, req *eth.GetBloc
 			BlockHash:       string(*blockHash),
 			FullTransaction: req.FullTransaction,
 		}
-		proxy = &ProxyETHGetBlockByHash{Qtum: p.Qtum}
+		proxy = &ProxyETHGetBlockByHash{Kaon: p.Kaon}
 	)
 	block, jsonErr := proxy.request(ctx, getBlockByHashReq)
 	if jsonErr != nil {
-		p.GetDebugLogger().Log("function", p.Method(), "msg", "couldn't get block by hash", "err", err)
+		p.GetDebugLogger().Log("function", p.Method(), "msg", "couldn't get block by hash", "jsonErr", jsonErr.Message())
 		return nil, eth.NewCallbackError("couldn't get block by hash")
 	}
 	if blockNum != nil {
@@ -59,12 +59,13 @@ func (p *ProxyETHGetBlockByNumber) request(ctx context.Context, req *eth.GetBloc
 	return block, nil
 }
 
-// Properly handle unknown blocks
-func proxyETHGetBlockByHash(ctx context.Context, p ETHProxy, q *qtum.Qtum, blockNum *big.Int) (*qtum.GetBlockHashResponse, eth.JSONRPCError) {
+func proxyETHGetBlockByHash(ctx context.Context, p ETHProxy, q *kaon.Kaon, blockNum *big.Int) (*kaon.GetBlockHashResponse, *eth.JSONRPCError) {
+	// Attempt to get the block hash from Kaon
 	resp, err := q.GetBlockHash(ctx, blockNum)
 	if err != nil {
-		if err == qtum.ErrInvalidParameter {
-			// block doesn't exist, ETH rpc returns null
+		// Handle specific known errors
+		if err == kaon.ErrInvalidParameter {
+			// block doesn't exist; return null as per ETH RPC spec
 			/**
 			{
 				"jsonrpc": "2.0",
@@ -72,10 +73,25 @@ func proxyETHGetBlockByHash(ctx context.Context, p ETHProxy, q *qtum.Qtum, block
 				"result": null
 			}
 			**/
-			q.GetDebugLogger().Log("function", p.Method(), "request", blockNum.String(), "msg", "Unknown block")
+			q.GetDebugLogger().Log(
+				"function", p.Method(),
+				"request", blockNum.String(),
+				"msg", "Unknown block",
+				"error", err.Error(),
+			)
 			return nil, nil
 		}
-		return nil, eth.NewCallbackError("couldn't get block hash")
+
+		// Catch-all for any other unknown errors
+		q.GetDebugLogger().Log(
+			"function", p.Method(),
+			"request", blockNum.String(),
+			"msg", "Unexpected error occurred while getting block hash",
+			"error", err.Error(),
+		)
+		return nil, eth.NewCallbackError("unexpected error: " + err.Error())
 	}
+
+	// Successfully retrieved block hash
 	return &resp, nil
 }

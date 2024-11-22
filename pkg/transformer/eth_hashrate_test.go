@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 )
 
 func TestHashrateRequest(t *testing.T) {
@@ -20,21 +20,21 @@ func TestHashrateRequest(t *testing.T) {
 	}
 
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	exampleResponse := `{"enabled": true, "staking": false, "errors": "", "currentblocktx": 0, "pooledtx": 0, "difficulty": 4.656542373906925e-010, "search-interval": 0, "weight": 0, "netstakeweight": 0, "expectedtime": 0}`
-	getHashrateResponse := qtum.GetHashrateResponse{}
+	getHashrateResponse := kaon.GetHashrateResponse{}
 	unmarshalRequest([]byte(exampleResponse), &getHashrateResponse)
 
-	err = mockedClientDoer.AddResponse(qtum.MethodGetStakingInfo, getHashrateResponse)
+	err = mockedClientDoer.AddResponse(kaon.MethodGetStakingInfo, getHashrateResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	proxyEth := ProxyETHHashrate{qtumClient}
+	proxyEth := ProxyETHHashrate{kaonClient}
 	got, jsonErr := proxyEth.Request(request, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr)

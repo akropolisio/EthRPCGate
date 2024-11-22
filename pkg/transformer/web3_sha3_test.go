@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
 )
 
 func TestWeb3Sha3Request(t *testing.T) {

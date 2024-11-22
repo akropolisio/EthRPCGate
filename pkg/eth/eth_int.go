@@ -2,11 +2,12 @@ package eth
 
 import (
 	"encoding/json"
-	"github.com/pkg/errors"
 	"math/big"
 
+	"github.com/pkg/errors"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/qtumproject/janus/pkg/utils"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 )
 
 type ETHInt struct {

@@ -3,11 +3,12 @@ package transformer
 import (
 	"context"
 	"encoding/json"
+	"math/big"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 )
 
 func TestGetLogs(t *testing.T) {
@@ -252,17 +253,17 @@ func TestMultipleLogsWithORdTopics(t *testing.T) {
 	}
 
 	clientDoerMock := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(clientDoerMock)
+	kaonClient, err := internal.CreateMockedClient(clientDoerMock)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//Add response
-	clientDoerMock.AddRawResponse(qtum.MethodSearchLogs, []byte(rawResponse))
+	clientDoerMock.AddRawResponse(kaon.MethodSearchLogs, []byte(rawResponse))
 
 	//Prepare proxy & execute
 	//preparing proxy & executing
-	proxyEth := ProxyETHGetLogs{qtumClient}
+	proxyEth := ProxyETHGetLogs{kaonClient}
 
 	got, jsonErr := proxyEth.Request(requestRPC, internal.NewEchoContext())
 	if jsonErr != nil {
@@ -353,12 +354,12 @@ func testGetLogsWithTopics(t *testing.T, topics []interface{}, want eth.GetLogsR
 	}
 
 	clientDoerMock := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(clientDoerMock)
+	kaonClient, err := internal.CreateMockedClient(clientDoerMock)
 	if err != nil {
 		t.Fatal(err)
 	}
 	//prepare response
-	searchLogsResponse := qtum.SearchLogsResponse{
+	searchLogsResponse := kaon.SearchLogsResponse{
 		{
 			BlockHash:         "975326b65c20d0b8500f00a59f76b08a98513fff7ce0484382534a47b55f8985",
 			BlockNumber:       4063,
@@ -366,10 +367,10 @@ func testGetLogsWithTopics(t *testing.T, topics []interface{}, want eth.GetLogsR
 			TransactionIndex:  2,
 			From:              "6b22910b1e302cf74803ffd1691c2ecb858d3712",
 			To:                "db46f738bf32cdafb9a4a70eb8b44c76646bcaf0",
-			CumulativeGasUsed: 68572,
-			GasUsed:           68572,
+			CumulativeGasUsed: *big.NewInt(685720),
+			GasUsed:           *big.NewInt(685720),
 			ContractAddress:   "db46f738bf32cdafb9a4a70eb8b44c76646bcaf0",
-			Log: []qtum.Log{
+			Log: []kaon.Log{
 				{
 					Address: "db46f738bf32cdafb9a4a70eb8b44c76646bcaf0",
 					Topics: []string{
@@ -384,14 +385,14 @@ func testGetLogsWithTopics(t *testing.T, topics []interface{}, want eth.GetLogsR
 	}
 
 	//Add response
-	err = clientDoerMock.AddResponseWithRequestID(2, qtum.MethodSearchLogs, searchLogsResponse)
+	err = clientDoerMock.AddResponseWithRequestID(2, kaon.MethodSearchLogs, searchLogsResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//Prepare proxy & execute
 	//preparing proxy & executing
-	proxyEth := ProxyETHGetLogs{qtumClient}
+	proxyEth := ProxyETHGetLogs{kaonClient}
 
 	got, jsonErr := proxyEth.Request(requestRPC, internal.NewEchoContext())
 	if jsonErr != nil {
@@ -428,26 +429,26 @@ func TestGetLogsTranslateTopicWorksWithNil(t *testing.T) {
 	}
 
 	clientDoerMock := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(clientDoerMock)
+	kaonClient, err := internal.CreateMockedClient(clientDoerMock)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//Prepare proxy & execute
 	//preparing proxy & executing
-	proxyEth := ProxyETHGetLogs{qtumClient}
+	proxyEth := ProxyETHGetLogs{kaonClient}
 
-	qtumRequest, jsonErr := proxyEth.ToRequest(context.Background(), &request)
+	kaonRequest, jsonErr := proxyEth.ToRequest(context.Background(), &request)
 	if jsonErr != nil {
 		t.Fatal(jsonErr)
 	}
 
-	qtumRawRequest, err := json.Marshal(qtumRequest)
+	kaonRawRequest, err := json.Marshal(kaonRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	expectedRawRequest := `[4062,4062,{"addresses":["db46f738bf32cdafb9a4a70eb8b44c76646bcaf0"]},{"topics":["0f6798a560793a54c3bcfe86a93cde1e73087d944c0ea20544137d4121396885",null]}]`
 
-	internal.CheckTestResultEthRequestLog(request, expectedRawRequest, string(qtumRawRequest), t, false)
+	internal.CheckTestResultEthRequestLog(request, expectedRawRequest, string(kaonRawRequest), t, false)
 }

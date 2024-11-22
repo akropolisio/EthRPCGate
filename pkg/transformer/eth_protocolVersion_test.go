@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
 )
 
 func TestProtocolVersionReturnsHardcodedValue(t *testing.T) {

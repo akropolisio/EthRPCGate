@@ -1,4 +1,4 @@
-package qtum
+package kaon
 
 import (
 	"context"
@@ -13,30 +13,34 @@ import (
 )
 
 // sets the timeout for flushing out the cashed memory
-const CACHABLE_METHOD_CACHE_TIMEOUT = time.Second * 15
+const CACHABLE_METHOD_CACHE_TIMEOUT = time.Second * 30
 
 const (
-	QtumMethodGetblock             = "getblock"
-	QtumMethodGetblockhash         = "getblockhash"
-	QtumMethodGetblockheader       = "getblockheader"
-	QtumMethodGetblockchaininfo    = "getblockchaininfo"
-	QtumMethodGethexaddress        = "gethexaddress"
-	QtumMethodGetrawtransaction    = "getrawtransaction"
-	QtumMethodGettransaction       = "gettransaction"
-	QtumMethodGettxout             = "gettxout"
-	QtumMethodDecoderawtransaction = "decoderawtransaction"
+	KaonMethodGetblock                    = "getblock"
+	KaonMethodGetblockhash                = "getblockhash"
+	KaonMethodGetblockheader              = "getblockheader"
+	KaonMethodGetblockchaininfo           = "getblockchaininfo"
+	KaonMethodGethexaddress               = "gethexaddress"
+	KaonMethodGetrawtransaction           = "getrawtransaction"
+	KaonMethodGettransaction              = "gettransaction"
+	KaonMethodGettxout                    = "gettxout"
+	KaonMethodDecoderawtransaction        = "decoderawtransaction"
+	KaonMethodGetTransactionHashByEthHash = "gettxidbyethhash"
+	UltMethodFromHexAddress               = "fromhexaddress"
 )
 
 var cachable_methods = []string{
-	QtumMethodGetblock,
-	// QtumMethodGetblockhash,
-	// QtumMethodGetblockheader,
-	// QtumMethodGetblockchaininfo,
-	QtumMethodGethexaddress,
-	QtumMethodGetrawtransaction,
-	// QtumMethodGettransaction,
-	QtumMethodGettxout,
-	QtumMethodDecoderawtransaction,
+	KaonMethodGetblock,
+	KaonMethodGetblockhash,
+	KaonMethodGetblockheader,
+	KaonMethodGetblockchaininfo,
+	KaonMethodGethexaddress,
+	KaonMethodGetrawtransaction,
+	KaonMethodGettransaction,
+	KaonMethodGettxout,
+	KaonMethodDecoderawtransaction,
+	KaonMethodGetTransactionHashByEthHash,
+	UltMethodFromHexAddress,
 }
 
 // stores the rpc response for 'method' and 'params' in the cache

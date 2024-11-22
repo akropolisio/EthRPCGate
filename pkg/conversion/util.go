@@ -4,16 +4,16 @@ import (
 	"context"
 	"strings"
 
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/qtumproject/janus/pkg/utils"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 )
 
-func ExtractETHLogsFromTransactionReceipt(blockData qtum.LogBlockData, logs []qtum.Log) []eth.Log {
+func ExtractETHLogsFromTransactionReceipt(blockData kaon.LogBlockData, logs []kaon.Log) []eth.Log {
 	result := make([]eth.Log, 0, len(logs))
-	for _, log := range logs {
+	for i, log := range logs {
 		topics := make([]string, 0, len(log.GetTopics()))
 		for _, topic := range log.GetTopics() {
 			topics = append(topics, utils.AddHexPrefix(topic))
@@ -26,7 +26,7 @@ func ExtractETHLogsFromTransactionReceipt(blockData qtum.LogBlockData, logs []qt
 			Data:             utils.AddHexPrefix(log.GetData()),
 			Address:          utils.AddHexPrefix(log.GetAddress()),
 			Topics:           topics,
-			LogIndex:         hexutil.EncodeUint64(uint64(log.Index)),
+			LogIndex:         hexutil.EncodeUint64(uint64(i)),
 		})
 	}
 	return result
@@ -44,7 +44,7 @@ func ConvertLogTopicsToStringArray(topics []interface{}) []string {
 	return requestedTopics
 }
 
-func SearchLogsAndFilterExtraTopics(ctx context.Context, q *qtum.Qtum, req *qtum.SearchLogsRequest) (qtum.SearchLogsResponse, eth.JSONRPCError) {
+func SearchLogsAndFilterExtraTopics(ctx context.Context, q *kaon.Kaon, req *kaon.SearchLogsRequest) (kaon.SearchLogsResponse, *eth.JSONRPCError) {
 	receipts, err := q.SearchLogs(ctx, req)
 	if err != nil {
 		return nil, eth.NewCallbackError(err.Error())
@@ -64,10 +64,10 @@ func SearchLogsAndFilterExtraTopics(ctx context.Context, q *qtum.Qtum, req *qtum
 
 	requestedAddressesMap := populateLoopUpMapWithToLower(req.Addresses)
 
-	var filteredReceipts qtum.SearchLogsResponse
+	var filteredReceipts kaon.SearchLogsResponse
 
 	for _, receipt := range receipts {
-		var logs []qtum.Log
+		var logs []kaon.Log
 		for index, log := range receipt.Log {
 			log.Index = index
 			if hasAddresses && !requestedAddressesMap[strings.ToLower(log.Address)] {
@@ -87,7 +87,7 @@ func SearchLogsAndFilterExtraTopics(ctx context.Context, q *qtum.Qtum, req *qtum
 	return filteredReceipts, nil
 }
 
-func FilterQtumLogs(addresses []string, filters []qtum.SearchLogsTopic, logs []qtum.Log) []qtum.Log {
+func FilterKaonLogs(addresses []string, filters []kaon.SearchLogsTopic, logs []kaon.Log) []kaon.Log {
 	hasTopics := len(filters) != 0
 	hasAddresses := len(addresses) != 0
 
@@ -102,7 +102,7 @@ func FilterQtumLogs(addresses []string, filters []qtum.SearchLogsTopic, logs []q
 
 	requestedAddressesMap := populateLoopUpMapWithToLower(addresses)
 
-	filteredLogs := []qtum.Log{}
+	filteredLogs := []kaon.Log{}
 
 	for _, log := range logs {
 		if hasAddresses && !requestedAddressesMap[strings.ToLower(strings.TrimPrefix(log.Address, "0x"))] {
@@ -118,7 +118,7 @@ func FilterQtumLogs(addresses []string, filters []qtum.SearchLogsTopic, logs []q
 	return filteredLogs
 }
 
-func DoFiltersMatch(filters []qtum.SearchLogsTopic, topics []string) bool {
+func DoFiltersMatch(filters []kaon.SearchLogsTopic, topics []string) bool {
 	filterCount := len(filters)
 	for i, topic := range topics {
 		if i >= filterCount {

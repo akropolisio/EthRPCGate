@@ -4,23 +4,23 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/kaonone/eth-rpc-gate/pkg/conversion"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/conversion"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
 )
 
 // ProxyETHGetLogs implements ETHProxy
 type ProxyETHGetLogs struct {
-	*qtum.Qtum
+	*kaon.Kaon
 }
 
 func (p *ProxyETHGetLogs) Method() string {
 	return "eth_getLogs"
 }
 
-func (p *ProxyETHGetLogs) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetLogs) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	var req eth.GetLogsRequest
 	if err := unmarshalRequest(rawreq.Params, &req); err != nil {
 		// TODO: Correct error code?
@@ -32,24 +32,24 @@ func (p *ProxyETHGetLogs) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (i
 	// 	return nil, errors.New("topics is not supported yet")
 	// }
 
-	// Calls ToRequest in order transform ETH-Request to a Qtum-Request
-	qtumreq, err := p.ToRequest(c.Request().Context(), &req)
+	// Calls ToRequest in order transform ETH-Request to a Kaon-Request
+	kaonreq, err := p.ToRequest(c.Request().Context(), &req)
 	if err != nil {
 		return nil, err
 	}
 
-	return p.request(c.Request().Context(), qtumreq)
+	return p.request(c.Request().Context(), kaonreq)
 }
 
-func (p *ProxyETHGetLogs) request(ctx context.Context, req *qtum.SearchLogsRequest) (*eth.GetLogsResponse, eth.JSONRPCError) {
-	receipts, err := conversion.SearchLogsAndFilterExtraTopics(ctx, p.Qtum, req)
+func (p *ProxyETHGetLogs) request(ctx context.Context, req *kaon.SearchLogsRequest) (*eth.GetLogsResponse, *eth.JSONRPCError) {
+	receipts, err := conversion.SearchLogsAndFilterExtraTopics(ctx, p.Kaon, req)
 	if err != nil {
 		return nil, err
 	}
 
 	logs := make([]eth.Log, 0)
 	for _, receipt := range receipts {
-		r := qtum.TransactionReceipt(receipt)
+		r := kaon.TransactionReceipt(receipt)
 		logs = append(logs, conversion.ExtractETHLogsFromTransactionReceipt(r, r.Log)...)
 	}
 
@@ -57,20 +57,20 @@ func (p *ProxyETHGetLogs) request(ctx context.Context, req *qtum.SearchLogsReque
 	return &resp, nil
 }
 
-func (p *ProxyETHGetLogs) ToRequest(ctx context.Context, ethreq *eth.GetLogsRequest) (*qtum.SearchLogsRequest, eth.JSONRPCError) {
-	//transform EthRequest fromBlock to QtumReq fromBlock:
-	from, err := getBlockNumberByRawParam(ctx, p.Qtum, ethreq.FromBlock, true)
+func (p *ProxyETHGetLogs) ToRequest(ctx context.Context, ethreq *eth.GetLogsRequest) (*kaon.SearchLogsRequest, *eth.JSONRPCError) {
+	//transform EthRequest fromBlock to KaonReq fromBlock:
+	from, err := getBlockNumberByRawParam(ctx, p.Kaon, ethreq.FromBlock, true)
 	if err != nil {
 		return nil, err
 	}
 
-	//transform EthRequest toBlock to QtumReq toBlock:
-	to, err := getBlockNumberByRawParam(ctx, p.Qtum, ethreq.ToBlock, true)
+	//transform EthRequest toBlock to KaonReq toBlock:
+	to, err := getBlockNumberByRawParam(ctx, p.Kaon, ethreq.ToBlock, true)
 	if err != nil {
 		return nil, err
 	}
 
-	//transform EthReq address to QtumReq address:
+	//transform EthReq address to KaonReq address:
 	var addresses []string
 	if ethreq.Address != nil {
 		if isBytesOfString(ethreq.Address) {
@@ -89,16 +89,16 @@ func (p *ProxyETHGetLogs) ToRequest(ctx context.Context, ethreq *eth.GetLogsRequ
 		}
 	}
 
-	//transform EthReq topics to QtumReq topics:
+	//transform EthReq topics to KaonReq topics:
 	topics, topicsErr := eth.TranslateTopics(ethreq.Topics)
 	if topicsErr != nil {
 		return nil, eth.NewCallbackError(topicsErr.Error())
 	}
 
-	return &qtum.SearchLogsRequest{
+	return &kaon.SearchLogsRequest{
 		Addresses: addresses,
 		FromBlock: from,
 		ToBlock:   to,
-		Topics:    qtum.NewSearchLogsTopics(topics),
+		Topics:    kaon.NewSearchLogsTopics(topics),
 	}, nil
 }

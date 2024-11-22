@@ -4,21 +4,21 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 )
 
 func TestChainIdMainnet(t *testing.T) {
-	testChainIdsImpl(t, "main", "0x51")
+	testChainIdsImpl(t, "main", "0x2ED3")
 }
 
 func TestChainIdTestnet(t *testing.T) {
-	testChainIdsImpl(t, "test", "0x22b9")
+	testChainIdsImpl(t, "test", "0x2ED5")
 }
 
 func TestChainIdRegtest(t *testing.T) {
-	testChainIdsImpl(t, "regtest", "0x22ba")
+	testChainIdsImpl(t, "regtest", "0x2ED4")
 }
 
 func TestChainIdUnknown(t *testing.T) {
@@ -36,19 +36,19 @@ func testChainIdsImpl(t *testing.T, chain string, expected string) {
 	mockedClientDoer := internal.NewDoerMappedMock()
 
 	//preparing client response
-	getBlockCountResponse := qtum.GetBlockChainInfoResponse{Chain: chain}
-	err = mockedClientDoer.AddResponseWithRequestID(2, qtum.MethodGetBlockChainInfo, getBlockCountResponse)
+	getBlockCountResponse := kaon.GetBlockChainInfoResponse{Chain: chain}
+	err = mockedClientDoer.AddResponseWithRequestID(2, kaon.MethodGetBlockChainInfo, getBlockCountResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	qtumClient, err := internal.CreateMockedClientForNetwork(mockedClientDoer, qtum.ChainAuto)
+	kaonClient, err := internal.CreateMockedClientForNetwork(mockedClientDoer, kaon.ChainAuto)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing proxy & executing request
-	proxyEth := ProxyETHChainId{qtumClient}
+	proxyEth := ProxyETHChainId{kaonClient}
 	got, jsonErr := proxyEth.Request(request, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr)

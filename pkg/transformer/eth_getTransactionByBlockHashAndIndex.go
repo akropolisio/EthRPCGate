@@ -5,21 +5,21 @@ import (
 	"encoding/json"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
 )
 
 // ProxyETHGetTransactionByBlockHashAndIndex implements ETHProxy
 type ProxyETHGetTransactionByBlockHashAndIndex struct {
-	*qtum.Qtum
+	*kaon.Kaon
 }
 
 func (p *ProxyETHGetTransactionByBlockHashAndIndex) Method() string {
 	return "eth_getTransactionByBlockHashAndIndex"
 }
 
-func (p *ProxyETHGetTransactionByBlockHashAndIndex) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetTransactionByBlockHashAndIndex) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	var req eth.GetTransactionByBlockHashAndIndex
 	if err := json.Unmarshal(rawreq.Params, &req); err != nil {
 		// TODO: Correct error code?
@@ -33,7 +33,7 @@ func (p *ProxyETHGetTransactionByBlockHashAndIndex) Request(rawreq *eth.JSONRPCR
 	return p.request(c.Request().Context(), &req)
 }
 
-func (p *ProxyETHGetTransactionByBlockHashAndIndex) request(ctx context.Context, req *eth.GetTransactionByBlockHashAndIndex) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetTransactionByBlockHashAndIndex) request(ctx context.Context, req *eth.GetTransactionByBlockHashAndIndex) (interface{}, *eth.JSONRPCError) {
 	transactionIndex, err := hexutil.DecodeUint64(req.TransactionIndex)
 	if err != nil {
 		// TODO: Correct error code?
@@ -41,7 +41,7 @@ func (p *ProxyETHGetTransactionByBlockHashAndIndex) request(ctx context.Context,
 	}
 
 	// Proxy eth_getBlockByHash and return the transaction at requested index
-	getBlockByNumber := ProxyETHGetBlockByHash{p.Qtum}
+	getBlockByNumber := ProxyETHGetBlockByHash{p.Kaon}
 	blockByNumber, jsonErr := getBlockByNumber.request(ctx, &eth.GetBlockByHashRequest{BlockHash: req.BlockHash, FullTransaction: true})
 
 	if jsonErr != nil {

@@ -30,11 +30,41 @@ func AddHexPrefix(hex string) string {
 	return "0x" + hex
 }
 
+func AddHexWithLengthPrefix(hex string) string {
+	// Remove existing "0x" prefix if present
+	if strings.HasPrefix(hex, "0x") {
+		hex = hex[2:]
+	}
+
+	// Calculate the number of leading zeroes needed
+	requiredLength := 64
+	currentLength := len(hex)
+	zeroesNeeded := requiredLength - currentLength
+
+	// Add leading zeroes
+	for i := 0; i < zeroesNeeded; i++ {
+		hex = "0" + hex
+	}
+
+	// Add "0x" prefix
+	return "0x" + hex
+}
+
 func AddHexPrefixIfNotEmpty(hex string) string {
 	if hex == "" {
 		return hex
 	}
 	return AddHexPrefix(hex)
+}
+
+func AddHexWithLengthPrefixIfNotEmpty(hex string) string {
+	if hex == "" {
+		return hex
+	}
+	if hex == "0" {
+		return ""
+	}
+	return AddHexWithLengthPrefix(hex)
 }
 
 // DecodeBig decodes a hex string whether input is with 0x prefix or not.
@@ -46,8 +76,8 @@ func DecodeBig(input string) (*big.Int, error) {
 	return hexutil.DecodeBig(input)
 }
 
-// Converts Qtum address to an Ethereum address
-func ConvertQtumAddress(address string) (ethAddress string, _ error) {
+// Converts Kaon address to an Ethereum address
+func ConvertKaonAddress(address string) (ethAddress string, _ error) {
 	if n := len(address); n < 22 {
 		return "", errors.Errorf("invalid address: length is less than 22 bytes - %d", n)
 	}
@@ -57,7 +87,7 @@ func ConvertQtumAddress(address string) (ethAddress string, _ error) {
 		return "", errors.Errorf("invalid address")
 	}
 
-	// Drop Qtum chain prefix and checksum suffix
+	// Drop Kaon chain prefix and checksum suffix
 	ethAddrBytes := base58.Decode(address)[1:21]
 
 	return hex.EncodeToString(ethAddrBytes), nil

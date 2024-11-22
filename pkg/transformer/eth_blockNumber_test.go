@@ -5,9 +5,9 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 )
 
 func TestBlockNumberRequest(t *testing.T) {
@@ -19,20 +19,20 @@ func TestBlockNumberRequest(t *testing.T) {
 	}
 
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing client response
-	getBlockCountResponse := qtum.GetBlockCountResponse{Int: big.NewInt(11284900)}
-	err = mockedClientDoer.AddResponseWithRequestID(2, qtum.MethodGetBlockCount, getBlockCountResponse)
+	getBlockCountResponse := kaon.GetBlockCountResponse{Int: big.NewInt(11284900)}
+	err = mockedClientDoer.AddResponseWithRequestID(2, kaon.MethodGetBlockCount, getBlockCountResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing proxy & executing request
-	proxyEth := ProxyETHBlockNumber{qtumClient}
+	proxyEth := ProxyETHBlockNumber{kaonClient}
 	got, jsonErr := proxyEth.Request(request, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr)

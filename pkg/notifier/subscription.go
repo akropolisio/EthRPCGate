@@ -11,9 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/qtumproject/janus/pkg/conversion"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/conversion"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 )
 
 type subscriptionInformation struct {
@@ -23,10 +24,42 @@ type subscriptionInformation struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 	running    bool
-	qtum       *qtum.Qtum
+	kaon       *kaon.Kaon
+	subType    string
+	agent      *Agent // Reference to the agent
 }
 
 func (s *subscriptionInformation) run() {
+	if s.params == nil {
+		return
+	}
+
+	s.mutex.Lock()
+	if s.running {
+		s.mutex.Unlock()
+		return
+	}
+
+	s.running = true
+	s.mutex.Unlock()
+
+	defer func() {
+		s.mutex.Lock()
+		defer s.mutex.Unlock()
+		s.running = false
+	}()
+
+	switch strings.ToLower(s.subType) {
+	case "logs":
+		s.runLogsSubscription()
+	case "newheads":
+		s.runNewHeadsSubscription()
+	default:
+		s.kaon.GetDebugLogger().Log("msg", "Unsupported subscription type", "type", s.subType)
+	}
+}
+
+func (s *subscriptionInformation) runLogsSubscription() {
 	if s.params == nil {
 		return
 	}
@@ -54,12 +87,12 @@ func (s *subscriptionInformation) run() {
 	nextBlock = nil
 	translatedTopics, err := eth.TranslateTopics(s.params.Params.Topics)
 	if err != nil {
-		s.qtum.GetDebugLogger().Log("msg", "Error translating logs topics", "error", err)
+		s.kaon.GetDebugLogger().Log("msg", "Error translating logs topics", "error", err)
 		return
 	}
 	ethAddresses, err := s.params.Params.GetAddresses()
 	if err != nil {
-		s.qtum.GetDebugLogger().Log("msg", "Error translating logs addresses", "error", err)
+		s.kaon.GetDebugLogger().Log("msg", "Error translating logs addresses", "error", err)
 		return
 	}
 	stringAddresses := make([]string, len(ethAddresses))
@@ -71,25 +104,25 @@ func (s *subscriptionInformation) run() {
 		}
 	}
 
-	qtumTopics := qtum.NewSearchLogsTopics(translatedTopics)
-	req := &qtum.WaitForLogsRequest{
+	kaonTopics := kaon.NewSearchLogsTopics(translatedTopics)
+	req := &kaon.WaitForLogsRequest{
 		FromBlock: nextBlock,
 		ToBlock:   nil,
-		Filter: qtum.WaitForLogsFilter{
+		Filter: kaon.WaitForLogsFilter{
 			Addresses: &stringAddresses,
-			Topics:    &qtumTopics,
+			Topics:    &kaonTopics,
 		},
 	}
 
-	if s.qtum.Chain() == qtum.ChainRegTest || s.qtum.Chain() == qtum.ChainTest {
+	if s.kaon.Chain() == kaon.ChainRegTest || s.kaon.Chain() == kaon.ChainTest {
 		req.MinimumConfirmations = 0
 	}
 
-	// this throttles QTUM api calls if waitforlogs is returning very quickly a lot
+	// this throttles Kaon api calls if waitforlogs is returning very quickly a lot
 	limitToXApiCalls := 5
 	inYSeconds := 10 * time.Second
-	// if a QTUM API call returns quicker than this, we will wait until this time is reached
-	// this prevents spamming the QTUM node too much
+	// if a Kaon API call returns quicker than this, we will wait until this time is reached
+	// this prevents spamming the Kaon node too much
 	minimumTimeBetweenCalls := 100 * time.Millisecond
 
 	rolling := newRollingLimit(limitToXApiCalls)
@@ -106,7 +139,7 @@ func (s *subscriptionInformation) run() {
 	// when proving this as a service, that can add up if tens of thousands are using the service
 	// we want to put an upper limit on ram usage for an ip/connection
 	// we could also put an absolute upper limit on ram usage for this feature
-	// TODO: Deal with RAM usage here when Janus gets large enough
+	// TODO: Deal with RAM usage here when eth-rpc-gate gets large enough
 	// some kind of FIFO hashmap?
 	sentHashes := make(map[string]bool)
 
@@ -115,25 +148,25 @@ func (s *subscriptionInformation) run() {
 		req.FromBlock = nextBlock
 		timeBeforeCall := time.Now()
 		rolling.Push(&timeBeforeCall)
-		resp, err := s.qtum.WaitForLogs(s.ctx, req)
+		resp, err := s.kaon.WaitForLogs(s.ctx, req)
 		timeAfterCall := time.Now()
 		if err == nil {
 			nextBlock = int(resp.NextBlock)
-			reqSearchLogs := qtum.SearchLogsRequest{
+			reqSearchLogs := kaon.SearchLogsRequest{
 				FromBlock: big.NewInt(int64(resp.NextBlock - 1)),
 				ToBlock:   big.NewInt(int64(resp.NextBlock - 1)),
 				Addresses: *req.Filter.Addresses,
 				Topics:    *req.Filter.Topics,
 			}
-			receiptsSearchLogs, err := s.qtum.SearchLogs(s.ctx, &reqSearchLogs)
+			receiptsSearchLogs, err := s.kaon.SearchLogs(s.ctx, &reqSearchLogs)
 			if err != nil {
-				s.qtum.GetErrorLogger().Log("msg", "Error calling searchLogs", "subscriptionId", s.id, "error", err)
+				s.kaon.GetErrorLogger().Log("msg", "Error calling searchLogs", "subscriptionId", s.id, "error", err)
 				return
 			}
-			for _, qtumLog := range receiptsSearchLogs {
-				qtumLogs := qtumLog.Log
-				logs := conversion.FilterQtumLogs(stringAddresses, qtumTopics, qtumLogs)
-				ethLogs := conversion.ExtractETHLogsFromTransactionReceipt(qtumLog, logs)
+			for _, kaonLog := range receiptsSearchLogs {
+				kaonLogs := kaonLog.Log
+				logs := conversion.FilterKaonLogs(stringAddresses, kaonTopics, kaonLogs)
+				ethLogs := conversion.ExtractETHLogsFromTransactionReceipt(kaonLog, logs)
 				for _, ethLog := range ethLogs {
 					subscription := &eth.EthSubscription{
 						SubscriptionID: s.Subscription.id,
@@ -142,10 +175,10 @@ func (s *subscriptionInformation) run() {
 					hash := computeHash(subscription)
 					if _, ok := sentHashes[hash]; !ok {
 						sentHashes[hash] = true
-						s.qtum.GetDebugLogger().Log("subscriptionId", s.id, "msg", "notifying of logs")
+						s.kaon.GetDebugLogger().Log("subscriptionId", s.id, "msg", "notifying of logs")
 						jsonRpcNotification, err := eth.NewJSONRPCNotification("eth_subscription", subscription)
 						if err != nil {
-							s.qtum.GetErrorLogger().Log("subscriptionId", s.id, "err", err)
+							s.kaon.GetErrorLogger().Log("subscriptionId", s.id, "err", err)
 							return
 						}
 						s.Send(jsonRpcNotification)
@@ -162,7 +195,7 @@ func (s *subscriptionInformation) run() {
 			}
 		} else {
 			// error occurred
-			s.qtum.GetDebugLogger().Log("subscriptionId", s.id, "err", err)
+			s.kaon.GetDebugLogger().Log("subscriptionId", s.id, "err", err)
 			failures = failures + 1
 		}
 
@@ -171,7 +204,7 @@ func (s *subscriptionInformation) run() {
 		select {
 		case <-done:
 			// err is wrapped so we can't detect (err == context.Cancelled)
-			s.qtum.GetDebugLogger().Log("subscriptionId", s.id, "msg", "context closed, dropping subscription")
+			s.kaon.GetDebugLogger().Log("subscriptionId", s.id, "msg", "context closed, dropping subscription")
 			return
 		default:
 		}
@@ -185,7 +218,7 @@ func (s *subscriptionInformation) run() {
 		}
 
 		if backoffTime > 0 {
-			s.qtum.GetDebugLogger().Log("subscriptionId", s.id, "msg", fmt.Sprintf("backing off for %d miliseconds", backoffTime/time.Millisecond))
+			s.kaon.GetDebugLogger().Log("subscriptionId", s.id, "msg", fmt.Sprintf("backing off for %d miliseconds", backoffTime/time.Millisecond))
 		}
 
 		select {
@@ -193,6 +226,93 @@ func (s *subscriptionInformation) run() {
 			return
 		case <-time.After(backoffTime):
 			// ok, try again
+		}
+	}
+}
+
+func (s *subscriptionInformation) runNewHeadsSubscription() {
+	lastBlock := int64(0)
+
+	newHeadsInterval := 10 * time.Second // adjust the interval as needed
+
+	for {
+		select {
+		case <-time.After(newHeadsInterval):
+			// Continue to next iteration
+		case <-s.ctx.Done():
+			return
+		}
+
+		// Safely obtain the transformer, similar to how it's done in the Agent struct
+		var transformer Transformer
+		s.mutex.RLock()
+		transformer = s.agent.transformer
+		s.mutex.RUnlock()
+
+		if transformer == nil {
+			s.kaon.GetErrorLogger().Log("msg", "No transformer available, cannot process 'newHeads' subscriptions")
+			continue
+		}
+
+		blockchainInfo, err := s.kaon.GetBlockChainInfo(s.ctx)
+		if err != nil {
+			s.kaon.GetErrorLogger().Log("msg", "Failure getting blockchaininfo", "err", err)
+			continue
+		}
+
+		latestBlock := blockchainInfo.Blocks
+		if lastBlock == 0 {
+			lastBlock = latestBlock
+			s.kaon.GetDebugLogger().Log("msg", "Initial block detected", "block", lastBlock)
+			continue
+		}
+
+		if latestBlock > lastBlock {
+			s.kaon.GetDebugLogger().Log("msg", "New head detected", "block", latestBlock)
+
+			params, err := json.Marshal([]interface{}{
+				utils.AddHexPrefix(blockchainInfo.Bestblockhash),
+				false,
+			})
+			if err != nil {
+				s.kaon.GetErrorLogger().Log("msg", "Failed to serialize eth_getBlockByHash request parameters", "err", err)
+				continue
+			}
+
+			result, jsonErr := transformer.Transform(&eth.JSONRPCRequest{
+				JSONRPC: "2.0",
+				Method:  "eth_getBlockByHash",
+				Params:  params,
+			}, NewEchoWithContext(s.ctx))
+			if jsonErr != nil {
+				s.kaon.GetErrorLogger().Log("msg", "Failed to eth_getBlockByHash", "hash", blockchainInfo.Bestblockhash, "err", jsonErr)
+				continue
+			}
+
+			getBlockByHashResponse, ok := result.(*eth.GetBlockByHashResponse)
+			if !ok {
+				s.kaon.GetErrorLogger().Log("msg", "Unexpected response type from eth_getBlockByHash", "hash", blockchainInfo.Bestblockhash)
+				continue
+			}
+
+			lastBlock = latestBlock
+
+			// Notify newHead
+			newHeadResponse := eth.NewEthSubscriptionNewHeadResponse(getBlockByHashResponse)
+
+			subscription := &eth.EthSubscription{
+				SubscriptionID: s.Subscription.id,
+				Result:         newHeadResponse,
+			}
+			jsonRpcNotification, err := eth.NewJSONRPCNotification("eth_subscription", subscription)
+			if err != nil {
+				s.kaon.GetErrorLogger().Log("msg", "Failed to create JSONRPC notification", "err", err)
+				continue
+			}
+
+			s.Send(jsonRpcNotification)
+		} else {
+			s.kaon.GetDebugLogger().Log("msg", "No new head detected", "block", latestBlock)
 		}
 	}
 }

@@ -2,12 +2,13 @@ package transformer
 
 import (
 	"encoding/json"
+	"math/big"
 	"testing"
 
 	"github.com/btcsuite/btcutil"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 )
 
 func TestGetAccountInfoRequest(t *testing.T) {
@@ -19,7 +20,7 @@ func TestGetAccountInfoRequest(t *testing.T) {
 	}
 	//prepare client
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,22 +30,22 @@ func TestGetAccountInfoRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	qtumClient.Accounts = append(qtumClient.Accounts, account)
+	kaonClient.Accounts = append(kaonClient.Accounts, account)
 
 	//prepare responses
-	getAccountInfoResponse := qtum.GetAccountInfoResponse{
+	getAccountInfoResponse := kaon.GetAccountInfoResponse{
 		Address: "1e6f89d7399081b4f8f8aa1ae2805a5efff2f960",
-		Balance: 12431243,
+		Balance: *big.NewInt(12431243),
 		// Storage json.RawMessage `json:"storage"`,
 		Code: "606060405236156100ad576000357c0100000000000000000...",
 	}
-	err = mockedClientDoer.AddResponseWithRequestID(3, qtum.MethodGetAccountInfo, getAccountInfoResponse)
+	err = mockedClientDoer.AddResponseWithRequestID(3, kaon.MethodGetAccountInfo, getAccountInfoResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing proxy & executing request
-	proxyEth := ProxyETHGetCode{qtumClient}
+	proxyEth := ProxyETHGetCode{kaonClient}
 	got, jsonErr := proxyEth.Request(requestRPC, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr)
@@ -64,23 +65,23 @@ func TestGetCodeInvalidAddressRequest(t *testing.T) {
 	}
 	//prepare client
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//prepare responses
-	getAccountInfoErrorResponse := qtum.GetErrorResponse(qtum.ErrInvalidAddress)
+	getAccountInfoErrorResponse := kaon.GetErrorResponse(kaon.ErrInvalidAddress)
 	if getAccountInfoErrorResponse == nil {
 		panic("mocked error response is nil")
 	}
-	err = mockedClientDoer.AddError(qtum.MethodGetAccountInfo, getAccountInfoErrorResponse)
+	err = mockedClientDoer.AddError(kaon.MethodGetAccountInfo, getAccountInfoErrorResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing proxy & executing request
-	proxyEth := ProxyETHGetCode{qtumClient}
+	proxyEth := ProxyETHGetCode{kaonClient}
 	got, jsonErr := proxyEth.Request(requestRPC, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr)

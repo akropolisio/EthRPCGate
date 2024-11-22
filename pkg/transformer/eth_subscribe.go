@@ -1,15 +1,15 @@
 package transformer
 
 import (
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/notifier"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/notifier"
-	"github.com/qtumproject/janus/pkg/qtum"
 )
 
 // ETHSubscribe implements ETHProxy
 type ETHSubscribe struct {
-	*qtum.Qtum
+	*kaon.Kaon
 	*notifier.Agent
 }
 
@@ -17,7 +17,7 @@ func (p *ETHSubscribe) Method() string {
 	return "eth_subscribe"
 }
 
-func (p *ETHSubscribe) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ETHSubscribe) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	notifier := getNotifier(c)
 	if notifier == nil {
 		p.GetLogger().Log("msg", "eth_subscribe only supported over websocket")
@@ -44,7 +44,7 @@ func (p *ETHSubscribe) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (inte
 	return p.request(&req, notifier)
 }
 
-func (p *ETHSubscribe) request(req *eth.EthSubscriptionRequest, notifier *notifier.Notifier) (*eth.EthSubscriptionResponse, eth.JSONRPCError) {
+func (p *ETHSubscribe) request(req *eth.EthSubscriptionRequest, notifier *notifier.Notifier) (*eth.EthSubscriptionResponse, *eth.JSONRPCError) {
 	notifier.ResponseRequired()
 	id, err := p.NewSubscription(notifier, req)
 	response := eth.EthSubscriptionResponse(id)

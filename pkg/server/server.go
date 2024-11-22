@@ -15,20 +15,20 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/heptiolabs/healthcheck"
+	"github.com/kaonone/eth-rpc-gate/pkg/analytics"
+	"github.com/kaonone/eth-rpc-gate/pkg/blockhash"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/transformer"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/pkg/errors"
-	"github.com/qtumproject/janus/pkg/analytics"
-	"github.com/qtumproject/janus/pkg/blockhash"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/transformer"
 )
 
 type Server struct {
 	address       string
 	transformer   *transformer.Transformer
-	qtumRPCClient *qtum.Qtum
+	kaonRPCClient *kaon.Kaon
 	logWriter     io.Writer
 	logger        log.Logger
 	httpsKey      string
@@ -39,7 +39,7 @@ type Server struct {
 	blockHash     *blockhash.BlockHash
 
 	healthCheckPercent   *int
-	qtumRequestAnalytics *analytics.Analytics
+	kaonRequestAnalytics *analytics.Analytics
 	ethRequestAnalytics  *analytics.Analytics
 
 	blocksMutex     sync.RWMutex
@@ -49,7 +49,7 @@ type Server struct {
 }
 
 func New(
-	qtumRPCClient *qtum.Qtum,
+	kaonRPCClient *kaon.Kaon,
 	transformer *transformer.Transformer,
 	addr string,
 	opts ...Option,
@@ -60,15 +60,15 @@ func New(
 		logger:              log.NewNopLogger(),
 		echo:                echo.New(),
 		address:             addr,
-		qtumRPCClient:       qtumRPCClient,
+		kaonRPCClient:       kaonRPCClient,
 		transformer:         transformer,
 		ethRequestAnalytics: analytics.NewAnalytics(requests),
 	}
 
 	blockHashProcessor, err := blockhash.NewBlockHash(
-		qtumRPCClient.GetContext(),
+		kaonRPCClient.GetContext(),
 		func() log.Logger {
-			return p.qtumRPCClient.GetLogger()
+			return p.kaonRPCClient.GetLogger()
 		},
 	)
 	if err != nil {
@@ -91,11 +91,11 @@ func (s *Server) Start() error {
 	e := s.echo
 
 	health := healthcheck.NewHandler()
-	health.AddLivenessCheck("qtumd-connection", func() error { return s.testConnectionToQtumd() })
-	health.AddLivenessCheck("qtumd-logevents-enabled", func() error { return s.testLogEvents() })
-	health.AddLivenessCheck("qtumd-blocks-syncing", func() error { return s.testBlocksSyncing() })
-	health.AddLivenessCheck("qtumd-error-rate", func() error { return s.testQtumdErrorRate() })
-	health.AddLivenessCheck("janus-error-rate", func() error { return s.testJanusErrorRate() })
+	health.AddLivenessCheck("kaond-connection", func() error { return s.testConnectionToKaond() })
+	health.AddLivenessCheck("kaond-logevents-enabled", func() error { return s.testLogEvents() })
+	health.AddLivenessCheck("kaond-blocks-syncing", func() error { return s.testBlocksSyncing() })
+	health.AddLivenessCheck("kaond-error-rate", func() error { return s.testKaondErrorRate() })
+	health.AddLivenessCheck("ethrpcgate-error-rate", func() error { return s.testeth - rpc - gateErrorRate() })
 
 	e.Use(middleware.CORS())
 	e.Use(middleware.BodyDump(func(c echo.Context, req []byte, res []byte) {
@@ -106,8 +106,8 @@ func (s *Server) Start() error {
 		}
 
 		if s.debug {
-			reqBody, reqErr := qtum.ReformatJSON(req)
-			resBody, resErr := qtum.ReformatJSON(res)
+			reqBody, reqErr := kaon.ReformatJSON(req)
+			resBody, resErr := kaon.ReformatJSON(res)
 			if reqErr == nil && resErr == nil {
 				cc.GetDebugLogger().Log("msg", "ETH RPC")
 				fmt.Fprintf(logWriter, "=> ETH request\n%s\n", reqBody)
@@ -128,7 +128,7 @@ func (s *Server) Start() error {
 				logger:        s.logger,
 				transformer:   s.transformer,
 				blockHash:     s.blockHash,
-				qtumAnalytics: s.qtumRequestAnalytics,
+				kaonAnalytics: s.kaonRequestAnalytics,
 				ethAnalytics:  s.ethRequestAnalytics,
 			}
 
@@ -169,8 +169,8 @@ func (s *Server) Start() error {
 	}
 
 	https := (s.httpsKey != "" && s.httpsCert != "")
-	url := s.qtumRPCClient.GetURL().Redacted()
-	level.Info(s.logger).Log("listen", s.address, "qtum_rpc", url, "msg", "proxy started", "https", https)
+	url := s.kaonRPCClient.GetURL().Redacted()
+	level.Info(s.logger).Log("listen", s.address, "KAON_RPC", url, "msg", "proxy started", "https", https)
 
 	var err error
 
@@ -178,24 +178,19 @@ func (s *Server) Start() error {
 	go func(ctx context.Context, e *echo.Echo) {
 		<-ctx.Done()
 		e.Close()
-	}(s.qtumRPCClient.GetContext(), e)
+	}(s.kaonRPCClient.GetContext(), e)
 
-	if s.qtumRPCClient.DbConfig.String() == "" {
+	if s.kaonRPCClient.DbConfig.String() == "" {
 		level.Warn(s.logger).Log("msg", "Database not configured - won't be able to respond to Ethereum block hash requests")
 	} else {
 		chainIdChan := make(chan int, 1)
-		err := s.blockHash.Start(&s.qtumRPCClient.DbConfig, chainIdChan)
+		err := s.blockHash.Start(&s.kaonRPCClient.DbConfig, chainIdChan)
 		if err != nil {
 			level.Error(s.logger).Log("msg", "Failed to launch block hash converter", "error", err)
-			/*
-				level.Error(s.logger).Log("msg", "Failed to connect to database, quitting")
-				e.Close()
-				return errors.Wrap(err, "Failed to connect to database")
-			*/
 		}
 
 		go func() {
-			chainIdChan <- s.qtumRPCClient.ChainId()
+			chainIdChan <- s.kaonRPCClient.ChainId()
 		}()
 	}
 
@@ -251,9 +246,9 @@ func SetHttps(key string, cert string) Option {
 	}
 }
 
-func SetQtumAnalytics(analytics *analytics.Analytics) Option {
+func SetKaonAnalytics(analytics *analytics.Analytics) Option {
 	return func(p *Server) error {
-		p.qtumRequestAnalytics = analytics
+		p.kaonRequestAnalytics = analytics
 		return nil
 	}
 }
@@ -329,7 +324,7 @@ func callHttpHandler(cc *myCtx, req *eth.JSONRPCRequest) (*eth.JSONRPCResult, er
 		logger:        cc.logger,
 		transformer:   cc.transformer,
 		blockHash:     cc.blockHash,
-		qtumAnalytics: cc.qtumAnalytics,
+		kaonAnalytics: cc.kaonAnalytics,
 		ethAnalytics:  cc.ethAnalytics,
 	}
 	newCtx.Set("myctx", myCtx)

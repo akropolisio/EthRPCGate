@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
 )
 
 func TestGetUncleByBlockHashAndIndexReturnsNil(t *testing.T) {
-	// request body doesn't matter, there is no QTUM object to proxy calls to
+	// request body doesn't matter, there is no KAON object to proxy calls to
 	requestParams := []json.RawMessage{}
 	request, err := internal.PrepareEthRPCRequest(1, requestParams)
 	if err != nil {

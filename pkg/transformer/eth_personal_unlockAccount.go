@@ -1,8 +1,8 @@
 package transformer
 
 import (
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
 )
 
 // ProxyETHPersonalUnlockAccount implements ETHProxy
@@ -12,6 +12,6 @@ func (p *ProxyETHPersonalUnlockAccount) Method() string {
 	return "personal_unlockAccount"
 }
 
-func (p *ProxyETHPersonalUnlockAccount) Request(req *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHPersonalUnlockAccount) Request(req *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	return eth.PersonalUnlockAccountResponse(true), nil
 }

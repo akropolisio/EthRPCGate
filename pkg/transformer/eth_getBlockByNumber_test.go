@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 )
 
-func initializeProxyETHGetBlockByNumber(qtumClient *qtum.Qtum) ETHProxy {
-	return &ProxyETHGetBlockByNumber{qtumClient}
+func initializeProxyETHGetBlockByNumber(kaonClient *kaon.Kaon) ETHProxy {
+	return &ProxyETHGetBlockByNumber{kaonClient}
 }
 
 func TestGetBlockByNumberRequest(t *testing.T) {
@@ -39,16 +39,16 @@ func TestGetBlockByNumberUnknownBlockRequest(t *testing.T) {
 	}
 
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 
-	unknownBlockResponse := qtum.GetErrorResponse(qtum.ErrInvalidParameter)
-	err = mockedClientDoer.AddError(qtum.MethodGetBlockHash, unknownBlockResponse)
+	unknownBlockResponse := kaon.GetErrorResponse(kaon.ErrInvalidParameter)
+	err = mockedClientDoer.AddError(kaon.MethodGetBlockHash, unknownBlockResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing proxy & executing request
-	proxyEth := ProxyETHGetBlockByNumber{qtumClient}
+	proxyEth := ProxyETHGetBlockByNumber{kaonClient}
 	got, jsonErr := proxyEth.Request(request, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr)

@@ -1,42 +1,44 @@
 package transformer
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
 )
 
 // ProxyETHGetBalance implements ETHProxy
 type ProxyETHGetBalance struct {
-	*qtum.Qtum
+	*kaon.Kaon
 }
 
 func (p *ProxyETHGetBalance) Method() string {
 	return "eth_getBalance"
 }
 
-func (p *ProxyETHGetBalance) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetBalance) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	var req eth.GetBalanceRequest
 	if err := unmarshalRequest(rawreq.Params, &req); err != nil {
 		// TODO: Correct error code?
 		return nil, eth.NewInvalidParamsError(err.Error())
 	}
 
+	if req.Address == "0x0000000000000000000000000000000000000000" { // ErrInvalidAddress
+		return "0x0", nil
+	}
+
 	addr := utils.RemoveHexPrefix(req.Address)
 	{
 		// is address a contract or an account?
-		qtumreq := qtum.GetAccountInfoRequest(addr)
-		qtumresp, err := p.GetAccountInfo(c.Request().Context(), &qtumreq)
+		kaonreq := kaon.GetAccountInfoRequest(addr)
+		kaonresp, err := p.GetAccountInfo(c.Request().Context(), &kaonreq)
 
 		// the address is a contract
 		if err == nil {
 			// the unit of the balance Satoshi
 			p.GetDebugLogger().Log("method", p.Method(), "address", req.Address, "msg", "is a contract")
-			return hexutil.EncodeUint64(uint64(qtumresp.Balance)), nil
+			return hexutil.EncodeBig(&kaonresp.Balance), nil
 		}
 	}
 
@@ -48,12 +50,10 @@ func (p *ProxyETHGetBalance) Request(rawreq *eth.JSONRPCRequest, c echo.Context)
 			return nil, eth.NewCallbackError(err.Error())
 		}
 
-		qtumreq := qtum.GetAddressBalanceRequest{
-			Addresses: []string{base58Addr},
-		}
-		qtumresp, err := p.GetAddressBalance(c.Request().Context(), &qtumreq)
+		kaonreq := kaon.GetAddressBalanceRequest{Address: base58Addr}
+		kaonresp, err := p.GetAddressBalance(c.Request().Context(), &kaonreq)
 		if err != nil {
-			if err == qtum.ErrInvalidAddress {
+			if err == kaon.ErrInvalidAddress {
 				// invalid address should return 0x0
 				return "0x0", nil
 			}
@@ -61,12 +61,9 @@ func (p *ProxyETHGetBalance) Request(rawreq *eth.JSONRPCRequest, c echo.Context)
 			return nil, eth.NewCallbackError(err.Error())
 		}
 
-		// 1 QTUM = 10 ^ 8 Satoshi
-		balance := new(big.Int).SetUint64(qtumresp.Balance)
+		// 1 KAON = 10 ^ 18 Satoshi
+		balance := kaonresp.Balance
 
-		//Balance for ETH response is represented in Weis (1 QTUM Satoshi = 10 ^ 10 Wei)
-		balance = balance.Mul(balance, big.NewInt(10000000000))
-
-		return hexutil.EncodeBig(balance), nil
+		return hexutil.EncodeBig(&balance), nil
 	}
 }

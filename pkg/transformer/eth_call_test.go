@@ -2,12 +2,13 @@ package transformer
 
 import (
 	"encoding/json"
+	"math/big"
 	"testing"
 	"time"
 
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 )
 
 func TestEthCallRequest(t *testing.T) {
@@ -24,51 +25,51 @@ func TestEthCallRequest(t *testing.T) {
 	requestRPC, err := internal.PrepareEthRPCRequest(1, requestParamsArray)
 
 	clientDoerMock := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(clientDoerMock)
+	kaonClient, err := internal.CreateMockedClient(clientDoerMock)
 
 	//preparing response
-	callContractResponse := qtum.CallContractResponse{
+	callContractResponse := kaon.CallContractResponse{
 		Address: "1e6f89d7399081b4f8f8aa1ae2805a5efff2f960",
 		ExecutionResult: struct {
-			GasUsed         int    `json:"gasUsed"`
-			Excepted        string `json:"excepted"`
-			ExceptedMessage string `json:"exceptedMessage"`
-			NewAddress      string `json:"newAddress"`
-			Output          string `json:"output"`
-			CodeDeposit     int    `json:"codeDeposit"`
-			GasRefunded     int    `json:"gasRefunded"`
-			DepositSize     int    `json:"depositSize"`
-			GasForDeposit   int    `json:"gasForDeposit"`
+			GasUsed         big.Int `json:"gasUsed"`
+			Excepted        string  `json:"excepted"`
+			ExceptedMessage string  `json:"exceptedMessage"`
+			NewAddress      string  `json:"newAddress"`
+			Output          string  `json:"output"`
+			CodeDeposit     int     `json:"codeDeposit"`
+			GasRefunded     big.Int `json:"gasRefunded"`
+			DepositSize     int     `json:"depositSize"`
+			GasForDeposit   big.Int `json:"gasForDeposit"`
 		}{
-			GasUsed:    21678,
+			GasUsed:    *big.NewInt(216780),
 			Excepted:   "None",
 			NewAddress: "1e6f89d7399081b4f8f8aa1ae2805a5efff2f960",
 			Output:     "0000000000000000000000000000000000000000000000000000000000000001",
 		},
 		TransactionReceipt: struct {
 			StateRoot string        `json:"stateRoot"`
-			GasUsed   int           `json:"gasUsed"`
+			GasUsed   big.Int       `json:"gasUsed"`
 			Bloom     string        `json:"bloom"`
 			Log       []interface{} `json:"log"`
 		}{
 			StateRoot: "d44fc5ad43bae52f01ff7eb4a7bba904ee52aea6c41f337aa29754e57c73fba6",
-			GasUsed:   21678,
+			GasUsed:   *big.NewInt(216780),
 			Bloom:     "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
 		},
 	}
-	err = clientDoerMock.AddResponseWithRequestID(1, qtum.MethodCallContract, callContractResponse)
+	err = clientDoerMock.AddResponseWithRequestID(1, kaon.MethodCallContract, callContractResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fromHexAddressResponse := qtum.FromHexAddressResponse("0x1e6f89d7399081b4f8f8aa1ae2805a5efff2f960")
-	err = clientDoerMock.AddResponseWithRequestID(2, qtum.MethodFromHexAddress, fromHexAddressResponse)
+	fromHexAddressResponse := kaon.FromHexAddressResponse("0x1e6f89d7399081b4f8f8aa1ae2805a5efff2f960")
+	err = clientDoerMock.AddResponseWithRequestID(2, kaon.MethodFromHexAddress, fromHexAddressResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing proxy & executing
-	proxyEth := ProxyETHCall{qtumClient}
+	proxyEth := ProxyETHCall{kaonClient}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,54 +98,54 @@ func TestRetry(t *testing.T) {
 	requestRPC, err := internal.PrepareEthRPCRequest(1, requestParamsArray)
 
 	clientDoerMock := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(clientDoerMock)
+	kaonClient, err := internal.CreateMockedClient(clientDoerMock)
 
 	//preparing response
-	callContractResponse := qtum.CallContractResponse{
+	callContractResponse := kaon.CallContractResponse{
 		Address: "1e6f89d7399081b4f8f8aa1ae2805a5efff2f960",
 		ExecutionResult: struct {
-			GasUsed         int    `json:"gasUsed"`
-			Excepted        string `json:"excepted"`
-			ExceptedMessage string `json:"exceptedMessage"`
-			NewAddress      string `json:"newAddress"`
-			Output          string `json:"output"`
-			CodeDeposit     int    `json:"codeDeposit"`
-			GasRefunded     int    `json:"gasRefunded"`
-			DepositSize     int    `json:"depositSize"`
-			GasForDeposit   int    `json:"gasForDeposit"`
+			GasUsed         big.Int `json:"gasUsed"`
+			Excepted        string  `json:"excepted"`
+			ExceptedMessage string  `json:"exceptedMessage"`
+			NewAddress      string  `json:"newAddress"`
+			Output          string  `json:"output"`
+			CodeDeposit     int     `json:"codeDeposit"`
+			GasRefunded     big.Int `json:"gasRefunded"`
+			DepositSize     int     `json:"depositSize"`
+			GasForDeposit   big.Int `json:"gasForDeposit"`
 		}{
-			GasUsed:    21678,
+			GasUsed:    *big.NewInt(216780),
 			Excepted:   "None",
 			NewAddress: "1e6f89d7399081b4f8f8aa1ae2805a5efff2f960",
 			Output:     "0000000000000000000000000000000000000000000000000000000000000001",
 		},
 		TransactionReceipt: struct {
 			StateRoot string        `json:"stateRoot"`
-			GasUsed   int           `json:"gasUsed"`
+			GasUsed   big.Int       `json:"gasUsed"`
 			Bloom     string        `json:"bloom"`
 			Log       []interface{} `json:"log"`
 		}{
 			StateRoot: "d44fc5ad43bae52f01ff7eb4a7bba904ee52aea6c41f337aa29754e57c73fba6",
-			GasUsed:   21678,
+			GasUsed:   *big.NewInt(216780),
 			Bloom:     "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
 		},
 	}
 
-	// return QTUM is busy response 4 times
+	// return Kaon is busy response 4 times
 	for i := 0; i < 4; i++ {
-		clientDoerMock.AddRawResponse(qtum.MethodCallContract, []byte(qtum.ErrQtumWorkQueueDepth.Error()))
+		clientDoerMock.AddRawResponse(kaon.MethodCallContract, []byte(kaon.ErrKaonWorkQueueDepth.Error()))
 	}
 	// on 5th request, return correct value
-	clientDoerMock.AddResponseWithRequestID(1, qtum.MethodCallContract, callContractResponse)
+	clientDoerMock.AddResponseWithRequestID(1, kaon.MethodCallContract, callContractResponse)
 
-	fromHexAddressResponse := qtum.FromHexAddressResponse("0x1e6f89d7399081b4f8f8aa1ae2805a5efff2f960")
-	err = clientDoerMock.AddResponseWithRequestID(2, qtum.MethodFromHexAddress, fromHexAddressResponse)
+	fromHexAddressResponse := kaon.FromHexAddressResponse("0x1e6f89d7399081b4f8f8aa1ae2805a5efff2f960")
+	err = clientDoerMock.AddResponseWithRequestID(2, kaon.MethodFromHexAddress, fromHexAddressResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing proxy & executing
-	proxyEth := ProxyETHCall{qtumClient}
+	proxyEth := ProxyETHCall{kaonClient}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,23 +182,23 @@ func TestEthCallRequestOnUnknownContract(t *testing.T) {
 	requestRPC, err := internal.PrepareEthRPCRequest(1, requestParamsArray)
 
 	clientDoerMock := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(clientDoerMock)
+	kaonClient, err := internal.CreateMockedClient(clientDoerMock)
 
-	fromHexAddressResponse := qtum.FromHexAddressResponse("0x1e6f89d7399081b4f8f8aa1ae2805a5efff2f960")
-	err = clientDoerMock.AddResponse(qtum.MethodFromHexAddress, fromHexAddressResponse)
+	fromHexAddressResponse := kaon.FromHexAddressResponse("0x1e6f89d7399081b4f8f8aa1ae2805a5efff2f960")
+	err = clientDoerMock.AddResponse(kaon.MethodFromHexAddress, fromHexAddressResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing error response
-	unknownAddressResponse := qtum.GetErrorResponse(qtum.ErrInvalidAddress)
-	err = clientDoerMock.AddError(qtum.MethodCallContract, unknownAddressResponse)
+	unknownAddressResponse := kaon.GetErrorResponse(kaon.ErrInvalidAddress)
+	err = clientDoerMock.AddError(kaon.MethodCallContract, unknownAddressResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing proxy & executing
-	proxyEth := ProxyETHCall{qtumClient}
+	proxyEth := ProxyETHCall{kaonClient}
 	if err != nil {
 		t.Fatal(err)
 	}

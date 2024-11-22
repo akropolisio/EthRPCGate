@@ -1,13 +1,13 @@
 package internal
 
 import (
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
 	"github.com/labstack/echo"
 	"github.com/pkg/errors"
-	"github.com/qtumproject/janus/pkg/eth"
 )
 
 type ETHProxy interface {
-	Request(*eth.JSONRPCRequest, echo.Context) (interface{}, eth.JSONRPCError)
+	Request(*eth.JSONRPCRequest, echo.Context) (interface{}, *eth.JSONRPCError)
 	Method() string
 }
 
@@ -15,7 +15,7 @@ type mockTransformer struct {
 	proxies map[string]ETHProxy
 }
 
-func (t *mockTransformer) Transform(req *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (t *mockTransformer) Transform(req *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	proxy, ok := t.proxies[req.Method]
 	if !ok {
 		return nil, eth.NewCallbackError("couldn't get proxy")
@@ -55,7 +55,7 @@ func NewMockETHProxy(method string, response interface{}) ETHProxy {
 	}
 }
 
-func (e *mockETHProxy) Request(*eth.JSONRPCRequest, echo.Context) (interface{}, eth.JSONRPCError) {
+func (e *mockETHProxy) Request(*eth.JSONRPCRequest, echo.Context) (interface{}, *eth.JSONRPCError) {
 	return e.response, nil
 }
 

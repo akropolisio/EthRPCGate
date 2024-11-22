@@ -5,23 +5,23 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
 	"github.com/shopspring/decimal"
 )
 
 // ProxyETHSendTransaction implements ETHProxy
 type ProxyETHSignTransaction struct {
-	*qtum.Qtum
+	*kaon.Kaon
 }
 
 func (p *ProxyETHSignTransaction) Method() string {
 	return "eth_signTransaction"
 }
 
-func (p *ProxyETHSignTransaction) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHSignTransaction) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	var req eth.SendTransactionRequest
 	if err := unmarshalRequest(rawreq.Params, &req); err != nil {
 		// TODO: Correct error code?
@@ -46,27 +46,27 @@ func (p *ProxyETHSignTransaction) Request(rawreq *eth.JSONRPCRequest, c echo.Con
 	return nil, eth.NewInvalidParamsError("Unknown operation")
 }
 
-func (p *ProxyETHSignTransaction) getRequiredUtxos(ctx context.Context, from string, neededAmount decimal.Decimal) ([]qtum.RawTxInputs, decimal.Decimal, error) {
-	//convert address to qtum address
+func (p *ProxyETHSignTransaction) getRequiredUtxos(ctx context.Context, from string, neededAmount decimal.Decimal) ([]kaon.RawTxInputs, decimal.Decimal, error) {
+	//convert address to Kaon address
 	addr := utils.RemoveHexPrefix(from)
 	base58Addr, err := p.FromHexAddress(addr)
 	if err != nil {
 		return nil, decimal.Decimal{}, err
 	}
 	// need to get utxos with txid and vouts. In order to do this we get a list of unspent transactions and begin summing them up
-	var getaddressutxos *qtum.GetAddressUTXOsRequest = &qtum.GetAddressUTXOsRequest{Addresses: []string{base58Addr}}
-	qtumresp, err := p.GetAddressUTXOs(ctx, getaddressutxos)
+	var getaddressutxos *kaon.GetAddressUTXOsRequest = &kaon.GetAddressUTXOsRequest{Addresses: []string{base58Addr}}
+	kaonresp, err := p.GetAddressUTXOs(ctx, getaddressutxos)
 	if err != nil {
 		return nil, decimal.Decimal{}, err
 	}
 
 	//Convert minSumAmount to Satoshis
-	minimumSum := convertFromQtumToSatoshis(neededAmount)
-	var utxos []qtum.RawTxInputs
+	minimumSum := convertFromKaonToSatoshis(neededAmount)
+	var utxos []kaon.RawTxInputs
 	var minUTXOsSum decimal.Decimal
-	for _, utxo := range *qtumresp {
-		minUTXOsSum = minUTXOsSum.Add(utxo.Satoshis)
-		utxos = append(utxos, qtum.RawTxInputs{TxID: utxo.TXID, Vout: utxo.OutputIndex})
+	for _, utxo := range *kaonresp {
+		minUTXOsSum = minUTXOsSum.Add(utxo.Satoshis.Decimal)
+		utxos = append(utxos, kaon.RawTxInputs{TxID: utxo.TXID, Vout: utxo.OutputIndex})
 		if minUTXOsSum.GreaterThanOrEqual(minimumSum) {
 			return utxos, minUTXOsSum, nil
 		}
@@ -86,8 +86,8 @@ func calculateNeededAmount(value, gasLimit, gasPrice decimal.Decimal) decimal.De
 	return value.Add(gasLimit.Mul(gasPrice))
 }
 
-func (p *ProxyETHSignTransaction) requestSendToContract(ctx context.Context, ethtx *eth.SendTransactionRequest) (string, eth.JSONRPCError) {
-	gasLimit, gasPrice, err := EthGasToQtum(ethtx)
+func (p *ProxyETHSignTransaction) requestSendToContract(ctx context.Context, ethtx *eth.SendTransactionRequest) (string, *eth.JSONRPCError) {
+	gasLimit, gasPrice, err := EthGasToKaon(ethtx)
 	if err != nil {
 		return "", eth.NewInvalidParamsError(err.Error())
 	}
@@ -95,7 +95,7 @@ func (p *ProxyETHSignTransaction) requestSendToContract(ctx context.Context, eth
 	amount := decimal.NewFromFloat(0.0)
 	if ethtx.Value != "" {
 		var err error
-		amount, err = EthValueToQtumAmount(ethtx.Value, ZeroSatoshi)
+		amount, err = EthValueToKaonAmount(ethtx.Value, ZeroSatoshi)
 		if err != nil {
 			return "", eth.NewInvalidParamsError(err.Error())
 		}
@@ -105,7 +105,11 @@ func (p *ProxyETHSignTransaction) requestSendToContract(ctx context.Context, eth
 	if err != nil {
 		return "", eth.NewInvalidParamsError(err.Error())
 	}
-	neededAmount := calculateNeededAmount(amount, decimal.NewFromBigInt(gasLimit, 0), newGasPrice)
+	gasLimitFormatted, errEncode := utils.ToDecimal(gasLimit)
+	if errEncode != nil {
+		return "", eth.NewCallbackError("something went wrong with signing the transaction; transaction incomplete")
+	}
+	neededAmount := calculateNeededAmount(amount, *gasLimitFormatted, newGasPrice)
 
 	inputs, balance, err := p.getRequiredUtxos(ctx, ethtx.From, neededAmount)
 	if err != nil {
@@ -117,10 +121,10 @@ func (p *ProxyETHSignTransaction) requestSendToContract(ctx context.Context, eth
 		return "", eth.NewCallbackError(err.Error())
 	}
 
-	contractInteractTx := &qtum.SendToContractRawRequest{
+	contractInteractTx := &kaon.SendToContractRawRequest{
 		ContractAddress: utils.RemoveHexPrefix(ethtx.To),
 		Datahex:         utils.RemoveHexPrefix(ethtx.Data),
-		Amount:          amount,
+		Amount:          kaon.TransformAmount(amount),
 		GasLimit:        gasLimit,
 		GasPrice:        gasPrice,
 	}
@@ -135,19 +139,19 @@ func (p *ProxyETHSignTransaction) requestSendToContract(ctx context.Context, eth
 
 	fromAddr := utils.RemoveHexPrefix(ethtx.From)
 
-	acc := p.Qtum.Accounts.FindByHexAddress(strings.ToLower(fromAddr))
+	acc := p.Kaon.Accounts.FindByHexAddress(strings.ToLower(fromAddr))
 	if acc == nil {
 		return "", eth.NewInvalidParamsError(fmt.Sprintf("No such account: %s", fromAddr))
 	}
 
-	rawtxreq := []interface{}{inputs, []interface{}{map[string]*qtum.SendToContractRawRequest{"contract": contractInteractTx}, map[string]decimal.Decimal{contractInteractTx.SenderAddress: change}}}
+	rawtxreq := []interface{}{inputs, []interface{}{map[string]*kaon.SendToContractRawRequest{"contract": contractInteractTx}, map[string]decimal.Decimal{contractInteractTx.SenderAddress: change}}}
 	var rawTx string
-	if err := p.Qtum.Request(qtum.MethodCreateRawTx, rawtxreq, &rawTx); err != nil {
+	if err := p.Kaon.Request(kaon.MethodCreateRawTx, rawtxreq, &rawTx); err != nil {
 		return "", eth.NewCallbackError(err.Error())
 	}
 
-	var resp *qtum.SignRawTxResponse
-	if err := p.Qtum.Request(qtum.MethodSignRawTx, []interface{}{rawTx}, &resp); err != nil {
+	var resp *kaon.SignRawTxResponse
+	if err := p.Kaon.Request(kaon.MethodSignRawTx, []interface{}{rawTx}, &resp); err != nil {
 		return "", eth.NewCallbackError(err.Error())
 	}
 	if !resp.Complete {
@@ -156,25 +160,25 @@ func (p *ProxyETHSignTransaction) requestSendToContract(ctx context.Context, eth
 	return utils.AddHexPrefix(resp.Hex), nil
 }
 
-func (p *ProxyETHSignTransaction) requestSendToAddress(ctx context.Context, req *eth.SendTransactionRequest) (string, eth.JSONRPCError) {
-	getQtumWalletAddress := func(addr string) (string, error) {
+func (p *ProxyETHSignTransaction) requestSendToAddress(ctx context.Context, req *eth.SendTransactionRequest) (string, *eth.JSONRPCError) {
+	getKaonWalletAddress := func(addr string) (string, error) {
 		if utils.IsEthHexAddress(addr) {
 			return p.FromHexAddress(utils.RemoveHexPrefix(addr))
 		}
 		return addr, nil
 	}
 
-	to, err := getQtumWalletAddress(req.To)
+	to, err := getKaonWalletAddress(req.To)
 	if err != nil {
 		return "", eth.NewCallbackError(err.Error())
 	}
 
-	from, err := getQtumWalletAddress(req.From)
+	from, err := getKaonWalletAddress(req.From)
 	if err != nil {
 		return "", eth.NewCallbackError(err.Error())
 	}
 
-	amount, err := EthValueToQtumAmount(req.Value, ZeroSatoshi)
+	amount, err := EthValueToKaonAmount(req.Value, ZeroSatoshi)
 	if err != nil {
 		return "", eth.NewInvalidParamsError(err.Error())
 	}
@@ -192,13 +196,13 @@ func (p *ProxyETHSignTransaction) requestSendToAddress(ctx context.Context, req 
 	var addressValMap = map[string]decimal.Decimal{to: amount, from: change}
 	rawtxreq := []interface{}{inputs, addressValMap}
 	var rawTx string
-	if err := p.Qtum.Request(qtum.MethodCreateRawTx, rawtxreq, &rawTx); err != nil {
+	if err := p.Kaon.Request(kaon.MethodCreateRawTx, rawtxreq, &rawTx); err != nil {
 		return "", eth.NewCallbackError(err.Error())
 	}
 
-	var resp *qtum.SignRawTxResponse
+	var resp *kaon.SignRawTxResponse
 	signrawtxreq := []interface{}{rawTx}
-	if err := p.Qtum.Request(qtum.MethodSignRawTx, signrawtxreq, &resp); err != nil {
+	if err := p.Kaon.Request(kaon.MethodSignRawTx, signrawtxreq, &resp); err != nil {
 		return "", eth.NewCallbackError(err.Error())
 	}
 	if !resp.Complete {
@@ -207,8 +211,8 @@ func (p *ProxyETHSignTransaction) requestSendToAddress(ctx context.Context, req 
 	return utils.AddHexPrefix(resp.Hex), nil
 }
 
-func (p *ProxyETHSignTransaction) requestCreateContract(ctx context.Context, req *eth.SendTransactionRequest) (string, eth.JSONRPCError) {
-	gasLimit, gasPrice, err := EthGasToQtum(req)
+func (p *ProxyETHSignTransaction) requestCreateContract(ctx context.Context, req *eth.SendTransactionRequest) (string, *eth.JSONRPCError) {
+	gasLimit, gasPrice, err := EthGasToKaon(req)
 	if err != nil {
 		return "", eth.NewInvalidParamsError(err.Error())
 	}
@@ -221,7 +225,7 @@ func (p *ProxyETHSignTransaction) requestCreateContract(ctx context.Context, req
 		}
 	}
 
-	contractDeploymentTx := &qtum.CreateContractRawRequest{
+	contractDeploymentTx := &kaon.CreateContractRawRequest{
 		ByteCode:      utils.RemoveHexPrefix(req.Data),
 		GasLimit:      gasLimit,
 		GasPrice:      gasPrice,
@@ -232,7 +236,11 @@ func (p *ProxyETHSignTransaction) requestCreateContract(ctx context.Context, req
 	if err != nil {
 		return "", eth.NewInvalidParamsError(err.Error())
 	}
-	neededAmount := calculateNeededAmount(decimal.NewFromFloat(0.0), decimal.NewFromBigInt(gasLimit, 0), newGasPrice)
+	gasLimitFormatted, errEncode := utils.ToDecimal(gasLimit)
+	if errEncode != nil {
+		return "", eth.NewCallbackError("something went wrong with signing the transaction; transaction incomplete")
+	}
+	neededAmount := calculateNeededAmount(decimal.NewFromFloat(0.0), *gasLimitFormatted, newGasPrice)
 
 	inputs, balance, err := p.getRequiredUtxos(ctx, req.From, neededAmount)
 	if err != nil {
@@ -244,15 +252,15 @@ func (p *ProxyETHSignTransaction) requestCreateContract(ctx context.Context, req
 		return "", eth.NewCallbackError(err.Error())
 	}
 
-	rawtxreq := []interface{}{inputs, []interface{}{map[string]*qtum.CreateContractRawRequest{"contract": contractDeploymentTx}, map[string]decimal.Decimal{from: change}}}
+	rawtxreq := []interface{}{inputs, []interface{}{map[string]*kaon.CreateContractRawRequest{"contract": contractDeploymentTx}, map[string]decimal.Decimal{from: change}}}
 	var rawTx string
-	if err := p.Qtum.Request(qtum.MethodCreateRawTx, rawtxreq, &rawTx); err != nil {
+	if err := p.Kaon.Request(kaon.MethodCreateRawTx, rawtxreq, &rawTx); err != nil {
 		return "", eth.NewCallbackError(err.Error())
 	}
 
-	var resp *qtum.SignRawTxResponse
+	var resp *kaon.SignRawTxResponse
 	signrawtxreq := []interface{}{rawTx}
-	if err := p.Qtum.Request(qtum.MethodSignRawTx, signrawtxreq, &resp); err != nil {
+	if err := p.Kaon.Request(kaon.MethodSignRawTx, signrawtxreq, &resp); err != nil {
 		return "", eth.NewCallbackError(err.Error())
 	}
 	if !resp.Complete {

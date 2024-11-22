@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 )
 
 func TestPeerCountRequest(t *testing.T) {
@@ -29,21 +29,21 @@ func testPeerCountRequest(t *testing.T, clients int) {
 	}
 
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	getPeerInfoResponse := []qtum.GetPeerInfoResponse{}
+	getPeerInfoResponse := []kaon.GetPeerInfoResponse{}
 	for i := 0; i < clients; i++ {
-		getPeerInfoResponse = append(getPeerInfoResponse, qtum.GetPeerInfoResponse{})
+		getPeerInfoResponse = append(getPeerInfoResponse, kaon.GetPeerInfoResponse{})
 	}
-	err = mockedClientDoer.AddResponseWithRequestID(2, qtum.MethodGetPeerInfo, getPeerInfoResponse)
+	err = mockedClientDoer.AddResponseWithRequestID(2, kaon.MethodGetPeerInfo, getPeerInfoResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	proxyEth := ProxyNetPeerCount{qtumClient}
+	proxyEth := ProxyNetPeerCount{kaonClient}
 	got, jsonErr := proxyEth.Request(request, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr)

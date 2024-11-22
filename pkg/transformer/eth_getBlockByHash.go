@@ -2,15 +2,17 @@ package transformer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/kaonone/eth-rpc-gate/pkg/blockhash"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/labstack/echo"
 	"github.com/pkg/errors"
-	"github.com/qtumproject/janus/pkg/blockhash"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
 )
 
 var ErrBlockHashNotConfigured = errors.New("BlockHash database not configured")
@@ -18,14 +20,14 @@ var ErrBlockHashUnknown = errors.New("BlockHash unknown")
 
 // ProxyETHGetBlockByHash implements ETHProxy
 type ProxyETHGetBlockByHash struct {
-	*qtum.Qtum
+	*kaon.Kaon
 }
 
 func (p *ProxyETHGetBlockByHash) Method() string {
 	return "eth_getBlockByHash"
 }
 
-func (p *ProxyETHGetBlockByHash) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetBlockByHash) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	req := new(eth.GetBlockByHashRequest)
 	if err := unmarshalRequest(rawreq.Params, req); err != nil {
 		// TODO: Correct error code?
@@ -41,8 +43,8 @@ func (p *ProxyETHGetBlockByHash) Request(rawreq *eth.JSONRPCRequest, c echo.Cont
 	req.BlockHash = utils.RemoveHexPrefix(req.BlockHash)
 
 	resultChan := make(chan *eth.GetBlockByHashResponse, 2)
-	errorChan := make(chan eth.JSONRPCError, 1)
-	qtumBlockErrorChan := make(chan error, 1)
+	errorChan := make(chan *eth.JSONRPCError, 1)
+	kaonBlockErrorChan := make(chan error, 1)
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
@@ -57,28 +59,28 @@ func (p *ProxyETHGetBlockByHash) Request(rawreq *eth.JSONRPCRequest, c echo.Cont
 	}()
 
 	if bh == nil {
-		qtumBlockErrorChan <- ErrBlockHashNotConfigured
+		kaonBlockErrorChan <- ErrBlockHashNotConfigured
 	} else {
 		go func() {
-			qtumBlockHash, err := bh.GetQtumBlockHashContext(ctx, req.BlockHash)
+			kaonBlockHash, err := bh.GetKaonBlockHashContext(ctx, req.BlockHash)
 			if err != nil {
-				qtumBlockErrorChan <- err
+				kaonBlockErrorChan <- err
 				return
 			}
 
-			if qtumBlockHash == nil {
-				qtumBlockErrorChan <- ErrBlockHashUnknown
+			if kaonBlockHash == nil {
+				kaonBlockErrorChan <- ErrBlockHashUnknown
 				return
 			}
 
 			request := &eth.GetBlockByHashRequest{
-				BlockHash:       utils.RemoveHexPrefix(*qtumBlockHash),
+				BlockHash:       utils.RemoveHexPrefix(*kaonBlockHash),
 				FullTransaction: req.FullTransaction,
 			}
 
 			result, jsonErr := p.request(ctx, request)
 			if jsonErr != nil {
-				qtumBlockErrorChan <- jsonErr.Error()
+				kaonBlockErrorChan <- jsonErr.Error()
 				return
 			}
 
@@ -94,7 +96,7 @@ func (p *ProxyETHGetBlockByHash) Request(rawreq *eth.JSONRPCRequest, c echo.Cont
 			case result := <-resultChan:
 				// backup succeeded
 				return result, nil
-			case <-qtumBlockErrorChan:
+			case <-kaonBlockErrorChan:
 				// backup failed, return original request
 				return nil, nil
 			}
@@ -107,17 +109,17 @@ func (p *ProxyETHGetBlockByHash) Request(rawreq *eth.JSONRPCRequest, c echo.Cont
 		case result := <-resultChan:
 			// backup succeeded
 			return result, nil
-		case <-qtumBlockErrorChan:
+		case <-kaonBlockErrorChan:
 			// backup failed, return original request
 			return nil, err
 		}
 	}
 }
 
-func (p *ProxyETHGetBlockByHash) request(ctx context.Context, req *eth.GetBlockByHashRequest) (*eth.GetBlockByHashResponse, eth.JSONRPCError) {
+func (p *ProxyETHGetBlockByHash) request(ctx context.Context, req *eth.GetBlockByHashRequest) (*eth.GetBlockByHashResponse, *eth.JSONRPCError) {
 	blockHeader, err := p.GetBlockHeader(ctx, req.BlockHash)
 	if err != nil {
-		if err == qtum.ErrInvalidAddress {
+		if err == kaon.ErrInvalidAddress {
 			// unknown block hash should return {result: null}
 			p.GetDebugLogger().Log("msg", "Unknown block hash", "blockHash", req.BlockHash)
 			return nil, nil
@@ -125,7 +127,7 @@ func (p *ProxyETHGetBlockByHash) request(ctx context.Context, req *eth.GetBlockB
 		p.GetDebugLogger().Log("msg", "couldn't get block header", "blockHash", req.BlockHash)
 		return nil, eth.NewCallbackError("couldn't get block header")
 	}
-	block, err := p.GetBlock(ctx, req.BlockHash)
+	block, err := p.GetBlock(ctx, req.BlockHash, req.FullTransaction)
 	if err != nil {
 		p.GetDebugLogger().Log("msg", "couldn't get block", "blockHash", req.BlockHash)
 		return nil, eth.NewCallbackError("couldn't get block")
@@ -136,7 +138,7 @@ func (p *ProxyETHGetBlockByHash) request(ctx context.Context, req *eth.GetBlockB
 	resp := &eth.GetBlockByHashResponse{
 		// TODO: researching
 		// * If ETH block has pending status, then the following values must be null
-		// ? Is it possible case for Qtum
+		// ? Is it possible case for Kaon
 		Hash:   utils.AddHexPrefix(req.BlockHash),
 		Number: hexutil.EncodeUint64(uint64(block.Height)),
 
@@ -180,63 +182,119 @@ func (p *ProxyETHGetBlockByHash) request(ctx context.Context, req *eth.GetBlockB
 
 	if blockHeader.IsGenesisBlock() {
 		resp.ParentHash = "0x0000000000000000000000000000000000000000000000000000000000000000"
-		resp.Miner = utils.AddHexPrefix(qtum.ZeroAddress)
+		resp.Miner = utils.AddHexPrefix(kaon.ZeroAddress)
 	} else {
 		resp.ParentHash = utils.AddHexPrefix(blockHeader.Previousblockhash)
 		// ! Not found
-		//
-		// NOTE:
-		// 	In order to find a miner it seems, that we have to check
-		// 	address field of the txout method response. Current
-		// 	suggestion is to fill this field with zeros, not to
-		// 	spend much time on requests execution
-		//
-		// TODO: check if it's value is acquirable via logs
-		resp.Miner = "0x0000000000000000000000000000000000000000"
+
+		if blockHeader.Proposer == "" {
+			resp.Miner = utils.AddHexPrefix(kaon.ZeroAddress)
+		} else {
+			resp.Miner = utils.AddHexPrefix(blockHeader.Proposer)
+		}
 	}
 
-	// TODO: rethink later
-	// ! Found only for contracts transactions
-	// As there is no gas values presented at common block info, we set
-	// gas limit value equalling to default gas limit of a block
-	resp.GasLimit = utils.AddHexPrefix(qtum.DefaultBlockGasLimit)
-	resp.GasUsed = "0x0"
+	resp.GasLimit = utils.AddHexPrefix(kaon.DefaultBlockGasLimit)
+	resp.GasUsed = utils.AddHexPrefix(blockHeader.GasUsed.String())
 
-	// TODO: Future improvement: If getBlock is called with verbosity 2 it also returns full tx info as if getRawTransaction was called for each,
-	// so using that from the start instead of requesting each tx individually as done here would save a lot of back-and-forth
+	var cumulativeGas *big.Int = big.NewInt(0)
 
 	if req.FullTransaction {
-		for _, txHash := range block.Txs {
-			tx, err := getTransactionByHash(ctx, p.Qtum, txHash)
-			if err != nil {
-				p.GetDebugLogger().Log("msg", "Couldn't get transaction by hash", "hash", txHash, "err", err)
-				return nil, eth.NewCallbackError("couldn't get transaction by hash")
-			}
-			if tx == nil {
-				if block.Height == 0 {
-					// Error Invalid address - The genesis block coinbase is not considered an ordinary transaction and cannot be retrieved
-					// the coinbase we can ignore since its not a real transaction, mainnet ethereum also doesn't return any data about the genesis coinbase
-					p.GetDebugLogger().Log("msg", "Failed to get transaction in genesis block, probably the coinbase which we can't get")
-				} else {
-					p.GetDebugLogger().Log("msg", "Failed to get transaction by hash included in a block", "hash", txHash)
-					if !p.GetFlagBool(qtum.FLAG_IGNORE_UNKNOWN_TX) {
-						return nil, eth.NewCallbackError("couldn't get transaction by hash included in a block")
-					}
+		for i, txHash := range block.Txs {
+			switch txData := txHash.(type) {
+			case string:
+				// Fallback to legacy trx processingg
+				tx, err := getTransactionByHashKAON(ctx, p.Kaon, txData)
+				if err != nil {
+					p.GetDebugLogger().Log("msg", "Couldn't get transaction by hash", "hash", txData, "err", err)
+					return nil, eth.NewCallbackError("couldn't get transaction by hash")
 				}
-			} else {
+				if tx == nil {
+					if block.Height == 0 {
+						// Error Invalid address - The genesis block coinbase is not considered an ordinary transaction and cannot be retrieved
+						// the coinbase we can ignore since its not a real transaction, mainnet ethereum also doesn't return any data about the genesis coinbase
+						p.GetDebugLogger().Log("msg", "Failed to get transaction in genesis block, probably the coinbase which we can't get")
+					} else {
+						p.GetDebugLogger().Log("msg", "Failed to get transaction by hash included in a block", "hash", txData)
+						if !p.GetFlagBool(kaon.FLAG_IGNORE_UNKNOWN_TX) {
+							return nil, eth.NewCallbackError("couldn't get transaction by hash included in a block")
+						}
+					}
+				} else {
+					resp.Transactions = append(resp.Transactions, *tx)
+				}
+			case *kaon.BlockTransactionDetails:
+				var ethTx *eth.GetTransactionByHashResponse
+				tx, err := formatTransactionInternal(ctx, p.Kaon, txData, block.Height, i, ethTx)
+				if err != nil {
+					p.GetDebugLogger().Log("msg", "Couldn't get transaction by hash", "hash", txData, "err", err)
+					return nil, eth.NewCallbackError("couldn't get transaction by hash")
+				}
+
+				tx.GasUsed = tx.Gas // TODO
+				tx.CumulativeGas = utils.AddHexPrefix(hexutil.EncodeBig(cumulativeGas))
+				var newValue *big.Int
+				newValue, _ = hexutil.DecodeBig(tx.Gas)
+				cumulativeGas = new(big.Int).Add(cumulativeGas, newValue)
+
 				resp.Transactions = append(resp.Transactions, *tx)
+
+			default:
+
+				// Create variables for potential responses
+				var ethTxData kaon.BlockTransactionDetails
+
+				// Try to unmarshal the response data into each potential response type
+				err := json.Unmarshal([]byte(marshalToString(txData)), &ethTxData)
+				if err != nil {
+					p.GetDebugLogger().Log("msg", "Couldn't get transaction by hash", "hash", txData, "err", err)
+					continue
+					// return nil, eth.NewCallbackError("couldn't get transaction by hash")
+				}
+
+				var ethTx *eth.GetTransactionByHashResponse
+				tx, serr := formatTransactionInternal(ctx, p.Kaon, &ethTxData, block.Height, i, ethTx)
+				if serr != nil {
+					p.GetDebugLogger().Log("msg", "Couldn't get transaction by hash", "hash", ethTxData.ID, "err", serr.Message())
+					continue
+					// return nil, eth.NewCallbackError("couldn't get transaction by hash")
+				}
+
+				tx.GasUsed = tx.Gas // TODO
+				tx.CumulativeGas = utils.AddHexPrefix(hexutil.EncodeBig(cumulativeGas))
+				var newValue *big.Int
+				newValue, _ = hexutil.DecodeBig(tx.Gas)
+				cumulativeGas = new(big.Int).Add(cumulativeGas, newValue)
+
+				resp.Transactions = append(resp.Transactions, *tx)
+
 			}
-			// TODO: fill gas used
-			// TODO: fill gas limit?
+			resp.GasLimit = utils.AddHexPrefix(kaon.DefaultBlockGasLimit) // TODO: replace by dynamic
+			resp.GasUsed = utils.AddHexPrefix(blockHeader.GasUsed.String())
 		}
 	} else {
 		for _, txHash := range block.Txs {
-			// NOTE:
-			// 	Etherium RPC API doc says, that tx hashes must be of [32]byte,
-			// 	however it doesn't seem to be correct, 'cause Etherium tx hash
-			// 	has [64]byte just like Qtum tx hash has. In this case we do no
-			// 	additional convertations now, while everything works fine
-			resp.Transactions = append(resp.Transactions, utils.AddHexPrefix(txHash))
+			switch txData := txHash.(type) {
+			case string:
+				// NOTE:
+				// 	Etherium RPC API doc says, that tx hashes must be of [32]byte,
+				// 	however it doesn't seem to be correct, 'cause Etherium tx hash
+				// 	has [64]byte just like Kaon tx hash has. In this case we do no
+				// 	additional convertations now, while everything works fine
+				resp.Transactions = append(resp.Transactions, utils.AddHexPrefix(txData))
+			default:
+				// Create variables for potential responses
+				var ethTxData kaon.BlockTransactionDetails
+
+				// Try to unmarshal the response data into each potential response type
+				err := json.Unmarshal([]byte(marshalToString(txData)), &ethTxData)
+				if err != nil {
+					p.GetDebugLogger().Log("msg", "Couldn't get transaction by hash", "hash", txData, "err", err)
+					continue
+					// return nil, eth.NewCallbackError("couldn't get transaction by hash")
+				}
+				resp.Transactions = append(resp.Transactions, utils.AddHexPrefix(ethTxData.ID))
+			}
 		}
 	}
 

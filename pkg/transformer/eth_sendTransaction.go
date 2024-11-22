@@ -1,10 +1,10 @@
 package transformer
 
 import (
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
 	"github.com/shopspring/decimal"
 )
 
@@ -12,14 +12,14 @@ var MinimumGasLimit = int64(22000)
 
 // ProxyETHSendTransaction implements ETHProxy
 type ProxyETHSendTransaction struct {
-	*qtum.Qtum
+	*kaon.Kaon
 }
 
 func (p *ProxyETHSendTransaction) Method() string {
 	return "eth_sendTransaction"
 }
 
-func (p *ProxyETHSendTransaction) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHSendTransaction) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	var req eth.SendTransactionRequest
 	err := unmarshalRequest(rawreq.Params, &req)
 	if err != nil {
@@ -32,7 +32,7 @@ func (p *ProxyETHSendTransaction) Request(rawreq *eth.JSONRPCRequest, c echo.Con
 	}
 
 	var result interface{}
-	var jsonErr eth.JSONRPCError
+	var jsonErr *eth.JSONRPCError
 
 	if req.IsCreateContract() {
 		result, jsonErr = p.requestCreateContract(&req)
@@ -51,8 +51,8 @@ func (p *ProxyETHSendTransaction) Request(rawreq *eth.JSONRPCRequest, c echo.Con
 	return result, jsonErr
 }
 
-func (p *ProxyETHSendTransaction) requestSendToContract(ethtx *eth.SendTransactionRequest) (*eth.SendTransactionResponse, eth.JSONRPCError) {
-	gasLimit, gasPrice, err := EthGasToQtum(ethtx)
+func (p *ProxyETHSendTransaction) requestSendToContract(ethtx *eth.SendTransactionRequest) (*eth.SendTransactionResponse, *eth.JSONRPCError) {
+	gasLimit, gasPrice, err := EthGasToKaon(ethtx)
 	if err != nil {
 		return nil, eth.NewInvalidParamsError(err.Error())
 	}
@@ -60,16 +60,16 @@ func (p *ProxyETHSendTransaction) requestSendToContract(ethtx *eth.SendTransacti
 	amount := decimal.NewFromFloat(0.0)
 	if ethtx.Value != "" {
 		var err error
-		amount, err = EthValueToQtumAmount(ethtx.Value, ZeroSatoshi)
+		amount, err = EthValueToKaonAmount(ethtx.Value, ZeroSatoshi)
 		if err != nil {
 			return nil, eth.NewInvalidParamsError(err.Error())
 		}
 	}
 
-	qtumreq := qtum.SendToContractRequest{
+	kaonreq := kaon.SendToContractRequest{
 		ContractAddress: utils.RemoveHexPrefix(ethtx.To),
 		Datahex:         utils.RemoveHexPrefix(ethtx.Data),
-		Amount:          amount,
+		Amount:          kaon.TransformAmount(amount),
 		GasLimit:        gasLimit,
 		GasPrice:        gasPrice,
 	}
@@ -79,11 +79,11 @@ func (p *ProxyETHSendTransaction) requestSendToContract(ethtx *eth.SendTransacti
 		if err != nil {
 			return nil, eth.NewCallbackError(err.Error())
 		}
-		qtumreq.SenderAddress = from
+		kaonreq.SenderAddress = from
 	}
 
-	var resp *qtum.SendToContractResponse
-	if err := p.Qtum.Request(qtum.MethodSendToContract, &qtumreq, &resp); err != nil {
+	var resp *kaon.SendToContractResponse
+	if err := p.Kaon.Request(kaon.MethodSendToContract, &kaonreq, &resp); err != nil {
 		return nil, eth.NewCallbackError(err.Error())
 	}
 
@@ -91,39 +91,39 @@ func (p *ProxyETHSendTransaction) requestSendToContract(ethtx *eth.SendTransacti
 	return &ethresp, nil
 }
 
-func (p *ProxyETHSendTransaction) requestSendToAddress(req *eth.SendTransactionRequest) (*eth.SendTransactionResponse, eth.JSONRPCError) {
-	getQtumWalletAddress := func(addr string) (string, error) {
+func (p *ProxyETHSendTransaction) requestSendToAddress(req *eth.SendTransactionRequest) (*eth.SendTransactionResponse, *eth.JSONRPCError) {
+	getKaonWalletAddress := func(addr string) (string, error) {
 		if utils.IsEthHexAddress(addr) {
 			return p.FromHexAddress(utils.RemoveHexPrefix(addr))
 		}
 		return addr, nil
 	}
 
-	from, err := getQtumWalletAddress(req.From)
+	from, err := getKaonWalletAddress(req.From)
 	if err != nil {
 		return nil, eth.NewInvalidParamsError(err.Error())
 	}
 
-	to, err := getQtumWalletAddress(req.To)
+	to, err := getKaonWalletAddress(req.To)
 	if err != nil {
 		return nil, eth.NewInvalidParamsError(err.Error())
 	}
 
-	amount, err := EthValueToQtumAmount(req.Value, ZeroSatoshi)
+	amount, err := EthValueToKaonAmount(req.Value, ZeroSatoshi)
 	if err != nil {
 		return nil, eth.NewInvalidParamsError(err.Error())
 	}
 
-	p.GetDebugLogger().Log("msg", "successfully converted from wei to QTUM", "wei", req.Value, "qtum", amount)
+	p.GetDebugLogger().Log("msg", "successfully converted from wei to KAON", "wei", req.Value, "kaon", amount)
 
-	qtumreq := qtum.SendToAddressRequest{
+	kaonreq := kaon.SendToAddressRequest{
 		Address:       to,
-		Amount:        amount,
+		Amount:        kaon.TransformAmount(amount),
 		SenderAddress: from,
 	}
 
-	var qtumresp qtum.SendToAddressResponse
-	if err := p.Qtum.Request(qtum.MethodSendToAddress, &qtumreq, &qtumresp); err != nil {
+	var kaonresp kaon.SendToAddressResponse
+	if err := p.Kaon.Request(kaon.MethodSendToAddress, &kaonreq, &kaonresp); err != nil {
 		// this can fail with:
 		// "error": {
 		//   "code": -3,
@@ -134,18 +134,18 @@ func (p *ProxyETHSendTransaction) requestSendToAddress(req *eth.SendTransactionR
 		return nil, eth.NewCallbackError(err.Error())
 	}
 
-	ethresp := eth.SendTransactionResponse(utils.AddHexPrefix(string(qtumresp)))
+	ethresp := eth.SendTransactionResponse(utils.AddHexPrefix(string(kaonresp)))
 
 	return &ethresp, nil
 }
 
-func (p *ProxyETHSendTransaction) requestCreateContract(req *eth.SendTransactionRequest) (*eth.SendTransactionResponse, eth.JSONRPCError) {
-	gasLimit, gasPrice, err := EthGasToQtum(req)
+func (p *ProxyETHSendTransaction) requestCreateContract(req *eth.SendTransactionRequest) (*eth.SendTransactionResponse, *eth.JSONRPCError) {
+	gasLimit, gasPrice, err := EthGasToKaon(req)
 	if err != nil {
 		return nil, eth.NewInvalidParamsError(err.Error())
 	}
 
-	qtumreq := &qtum.CreateContractRequest{
+	kaonreq := &kaon.CreateContractRequest{
 		ByteCode: utils.RemoveHexPrefix(req.Data),
 		GasLimit: gasLimit,
 		GasPrice: gasPrice,
@@ -160,11 +160,11 @@ func (p *ProxyETHSendTransaction) requestCreateContract(req *eth.SendTransaction
 			}
 		}
 
-		qtumreq.SenderAddress = from
+		kaonreq.SenderAddress = from
 	}
 
-	var resp *qtum.CreateContractResponse
-	if err := p.Qtum.Request(qtum.MethodCreateContract, qtumreq, &resp); err != nil {
+	var resp *kaon.CreateContractResponse
+	if err := p.Kaon.Request(kaon.MethodCreateContract, kaonreq, &resp); err != nil {
 		return nil, eth.NewCallbackError(err.Error())
 	}
 

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 )
 
 func TestNetListeningInactive(t *testing.T) {
@@ -25,18 +25,18 @@ func testNetListeningRequest(t *testing.T, active bool) {
 	}
 
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	networkInfoResponse := qtum.NetworkInfoResponse{NetworkActive: active}
-	err = mockedClientDoer.AddResponseWithRequestID(2, qtum.MethodGetNetworkInfo, networkInfoResponse)
+	networkInfoResponse := kaon.NetworkInfoResponse{NetworkActive: active}
+	err = mockedClientDoer.AddResponseWithRequestID(2, kaon.MethodGetNetworkInfo, networkInfoResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	proxyEth := ProxyNetListening{qtumClient}
+	proxyEth := ProxyNetListening{kaonClient}
 	got, jsonErr := proxyEth.Request(request, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr)

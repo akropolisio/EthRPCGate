@@ -4,30 +4,30 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
 )
 
 // ProxyETHGetStorageAt implements ETHProxy
 type ProxyETHGetStorageAt struct {
-	*qtum.Qtum
+	*kaon.Kaon
 }
 
 func (p *ProxyETHGetStorageAt) Method() string {
 	return "eth_getStorageAt"
 }
 
-func (p *ProxyETHGetStorageAt) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetStorageAt) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	var req eth.GetStorageRequest
 	if err := unmarshalRequest(rawreq.Params, &req); err != nil {
 		// TODO: Correct error code?
 		return nil, eth.NewInvalidParamsError(err.Error())
 	}
 
-	qtumAddress := utils.RemoveHexPrefix(req.Address)
-	blockNumber, err := getBlockNumberByParam(c.Request().Context(), p.Qtum, req.BlockNumber, false)
+	kaonAddress := utils.RemoveHexPrefix(req.Address)
+	blockNumber, err := getBlockNumberByParam(c.Request().Context(), p.Kaon, req.BlockNumber, false)
 	if err != nil {
 		p.GetDebugLogger().Log("msg", fmt.Sprintf("Failed to get block number by param for '%s'", req.BlockNumber), "err", err)
 		return nil, err
@@ -35,34 +35,34 @@ func (p *ProxyETHGetStorageAt) Request(rawreq *eth.JSONRPCRequest, c echo.Contex
 
 	return p.request(
 		c.Request().Context(),
-		&qtum.GetStorageRequest{
-			Address:     qtumAddress,
+		&kaon.GetStorageRequest{
+			Address:     kaonAddress,
 			BlockNumber: blockNumber,
 		},
 		utils.RemoveHexPrefix(req.Index),
 	)
 }
 
-func (p *ProxyETHGetStorageAt) request(ctx context.Context, ethreq *qtum.GetStorageRequest, index string) (*eth.GetStorageResponse, eth.JSONRPCError) {
-	qtumresp, err := p.Qtum.GetStorage(ctx, ethreq)
+func (p *ProxyETHGetStorageAt) request(ctx context.Context, ethreq *kaon.GetStorageRequest, index string) (*eth.GetStorageResponse, *eth.JSONRPCError) {
+	kaonresp, err := p.Kaon.GetStorage(ctx, ethreq)
 	if err != nil {
 		return nil, eth.NewCallbackError(err.Error())
 	}
 
-	// qtum res -> eth res
-	return p.ToResponse(qtumresp, index), nil
+	// kaon res -> eth res
+	return p.ToResponse(kaonresp, index), nil
 }
 
-func (p *ProxyETHGetStorageAt) ToResponse(qtumresp *qtum.GetStorageResponse, slot string) *eth.GetStorageResponse {
+func (p *ProxyETHGetStorageAt) ToResponse(kaonresp *kaon.GetStorageResponse, slot string) *eth.GetStorageResponse {
 	// the value for unknown anything
 	storageData := eth.GetStorageResponse("0x0000000000000000000000000000000000000000000000000000000000000000")
 	if len(slot) != 64 {
 		slot = leftPadStringWithZerosTo64Bytes(slot)
 	}
-	for _, outerValue := range *qtumresp {
-		qtumStorageData, ok := outerValue[slot]
+	for _, outerValue := range *kaonresp {
+		kaonStorageData, ok := outerValue[slot]
 		if ok {
-			storageData = eth.GetStorageResponse(utils.AddHexPrefix(qtumStorageData))
+			storageData = eth.GetStorageResponse(utils.AddHexPrefix(kaonStorageData))
 			return &storageData
 		}
 	}

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
 )
 
 func TestGetStorageAtRequestWithNoLeadingZeros(t *testing.T) {
@@ -19,20 +19,20 @@ func TestGetStorageAtRequestWithNoLeadingZeros(t *testing.T) {
 	}
 
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 
 	value := "0x012341231441234123412343211234abcde12342332100000223030004005000"
 
-	getStorageResponse := qtum.GetStorageResponse{}
+	getStorageResponse := kaon.GetStorageResponse{}
 	getStorageResponse[leftPadStringWithZerosTo64Bytes("12345")] = make(map[string]string)
 	getStorageResponse[leftPadStringWithZerosTo64Bytes("12345")][leftPadStringWithZerosTo64Bytes(index)] = value
-	err = mockedClientDoer.AddResponseWithRequestID(2, qtum.MethodGetStorage, getStorageResponse)
+	err = mockedClientDoer.AddResponseWithRequestID(2, kaon.MethodGetStorage, getStorageResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing proxy & executing request
-	proxyEth := ProxyETHGetStorageAt{qtumClient}
+	proxyEth := ProxyETHGetStorageAt{kaonClient}
 	got, jsonErr := proxyEth.Request(request, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr)
@@ -53,20 +53,20 @@ func TestGetStorageAtRequestWithLeadingZeros(t *testing.T) {
 	}
 
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 
 	value := "0x012341231441234123412343211234abcde12342332100000223030004005000"
 
-	getStorageResponse := qtum.GetStorageResponse{}
+	getStorageResponse := kaon.GetStorageResponse{}
 	getStorageResponse[leftPadStringWithZerosTo64Bytes("12345")] = make(map[string]string)
 	getStorageResponse[leftPadStringWithZerosTo64Bytes("12345")][leftPadStringWithZerosTo64Bytes(index)] = value
-	err = mockedClientDoer.AddResponseWithRequestID(2, qtum.MethodGetStorage, getStorageResponse)
+	err = mockedClientDoer.AddResponseWithRequestID(2, kaon.MethodGetStorage, getStorageResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing proxy & executing request
-	proxyEth := ProxyETHGetStorageAt{qtumClient}
+	proxyEth := ProxyETHGetStorageAt{kaonClient}
 	got, jsonErr := proxyEth.Request(request, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr)
@@ -87,21 +87,21 @@ func TestGetStorageAtUnknownFieldRequest(t *testing.T) {
 	}
 
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 
 	unknownValue := "0x0000000000000000000000000000000000000000000000000000000000000000"
 	value := "0x012341231441234123412343211234abcde12342332100000223030004005000"
 
-	getStorageResponse := qtum.GetStorageResponse{}
+	getStorageResponse := kaon.GetStorageResponse{}
 	getStorageResponse[leftPadStringWithZerosTo64Bytes("12345")] = make(map[string]string)
 	getStorageResponse[leftPadStringWithZerosTo64Bytes("12345")][leftPadStringWithZerosTo64Bytes(index)] = value
-	err = mockedClientDoer.AddResponseWithRequestID(2, qtum.MethodGetStorage, getStorageResponse)
+	err = mockedClientDoer.AddResponseWithRequestID(2, kaon.MethodGetStorage, getStorageResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing proxy & executing request
-	proxyEth := ProxyETHGetStorageAt{qtumClient}
+	proxyEth := ProxyETHGetStorageAt{kaonClient}
 	got, jsonErr := proxyEth.Request(request, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr)

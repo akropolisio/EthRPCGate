@@ -1,8 +1,8 @@
 package transformer
 
 import (
+	"github.com/kaonone/eth-rpc-gate/pkg/notifier"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/notifier"
 )
 
 func getNotifier(c echo.Context) *notifier.Notifier {

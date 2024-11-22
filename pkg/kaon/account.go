@@ -1,4 +1,4 @@
-package qtum
+package kaon
 
 import (
 	"encoding/hex"
@@ -32,21 +32,21 @@ func (a *Account) ToHexAddress() string {
 	return hex.EncodeToString(keyid)
 }
 
-var qtumMainNetParams = chaincfg.MainNetParams
-var qtumTestNetParams = chaincfg.MainNetParams
+var kaonMainNetParams = chaincfg.MainNetParams
+var kaonTestNetParams = chaincfg.MainNetParams
 
 func init() {
-	qtumMainNetParams.PubKeyHashAddrID = 58
-	qtumMainNetParams.ScriptHashAddrID = 50
+	kaonMainNetParams.PubKeyHashAddrID = 58
+	kaonMainNetParams.ScriptHashAddrID = 50
 
-	qtumTestNetParams.PubKeyHashAddrID = 120
-	qtumTestNetParams.ScriptHashAddrID = 110
+	kaonTestNetParams.PubKeyHashAddrID = 120
+	kaonTestNetParams.ScriptHashAddrID = 110
 }
 
 func (a *Account) ToBase58Address(isMain bool) (string, error) {
-	params := &qtumMainNetParams
+	params := &kaonMainNetParams
 	if !isMain {
-		params = &qtumTestNetParams
+		params = &kaonTestNetParams
 	}
 
 	addr, err := btcutil.NewAddressPubKey(a.SerializePubKey(), params)

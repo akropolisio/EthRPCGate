@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 )
 
-func initializeProxyETHGetBlockByHash(qtumClient *qtum.Qtum) ETHProxy {
-	return &ProxyETHGetBlockByHash{qtumClient}
+func initializeProxyETHGetBlockByHash(kaonClient *kaon.Kaon) ETHProxy {
+	return &ProxyETHGetBlockByHash{kaonClient}
 }
 
 func TestGetBlockByHashRequestNonceLength(t *testing.T) {

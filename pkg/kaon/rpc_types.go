@@ -1,4 +1,4 @@
-package qtum
+package kaon
 
 import (
 	"encoding/json"
@@ -6,10 +6,75 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/pkg/errors"
-	"github.com/qtumproject/janus/pkg/utils"
 	"github.com/shopspring/decimal"
 )
+
+// Amount is a custom type to handle big integers with automatic scaling.
+type Amount struct {
+	decimal.Decimal
+}
+
+var ZeroAmount = NewAmount(0, 1)
+
+// UnmarshalJSON is a custom unmarshaler that scales the number by 10^18.
+func (a *Amount) UnmarshalJSON(data []byte) error {
+	// Temporary variable for unmarshaling
+	var d decimal.Decimal
+	if err := json.Unmarshal(data, &d); err != nil {
+		return err
+	}
+
+	// Scale by 10^18
+	scaleFactor := decimal.NewFromInt(1e18)
+	scaled := d.Mul(scaleFactor)
+
+	// Assign the scaled value to Amount
+	a.Decimal = scaled
+
+	return nil
+}
+
+func NewAmount(value int64, exp int32) Amount {
+	d := decimal.New(value, exp)
+	return Amount{Decimal: d}
+}
+
+func TransformAmount(d decimal.Decimal) Amount {
+	return Amount{Decimal: d}
+}
+
+// NewFromFloat creates a new Amount from a float64.
+func NewFromFloat(value float64) Amount {
+	d := decimal.NewFromFloat(value)
+	// Apply scaling if needed, e.g., multiply by 10^18
+	scaleFactor := decimal.NewFromInt(1e18)
+	scaled := d.Mul(scaleFactor)
+	return Amount{Decimal: scaled}
+}
+
+// NewFromString creates a new Amount from a string.
+func NewFromString(value string) (Amount, error) {
+	d, err := decimal.NewFromString(value)
+	if err != nil {
+		return Amount{}, err
+	}
+	// Apply scaling if needed, e.g., multiply by 10^18
+	scaleFactor := decimal.NewFromInt(1e18)
+	scaled := d.Mul(scaleFactor)
+	return Amount{Decimal: scaled}, nil
+}
+
+// NewFromString creates a new Amount from a string.
+func NewFromInt(value int64) Amount {
+	d := decimal.NewFromInt(value)
+
+	// Apply scaling if needed, e.g., multiply by 10^18
+	scaleFactor := decimal.NewFromInt(1e18)
+	scaled := d.Mul(scaleFactor)
+	return Amount{Decimal: scaled}
+}
 
 // TODO: Wipe these out when it comes time to change over from floats to integers, and change SendToContractRequest to not use strings where numerics will do
 // Todo: Go and fix the need for a custom json unmarshall in the non raw versions of these types
@@ -35,12 +100,12 @@ const (
 )
 
 type SendToContractRawRequest struct {
-	ContractAddress string          `json:"contractAddress"`
-	Datahex         string          `json:"data"`
-	Amount          decimal.Decimal `json:"amount"`
-	GasLimit        *big.Int        `json:"gasLimit"`
-	GasPrice        string          `json:"gasPrice"`
-	SenderAddress   string          `json:"senderaddress"`
+	ContractAddress string   `json:"contractAddress"`
+	Datahex         string   `json:"data"`
+	Amount          Amount   `json:"amount"`
+	GasLimit        *big.Int `json:"gasLimit"`
+	GasPrice        string   `json:"gasPrice"`
+	SenderAddress   string   `json:"senderaddress"`
 }
 
 type CreateContractRawRequest struct {
@@ -74,82 +139,94 @@ type (
 		  "difficulty": 4.656542373906925e-10,
 		  "mediantime": 1533096368,
 		  "verificationprogress": 1,
+		  "initialblockdownload": false,
 		  "chainwork": "0000000000000000000000000000000000000000000000000000000000002054",
+		  "size_on_disk": 3103111212,
 		  "pruned": false,
-		  "softforks": [
-		    {
-		      "id": "bip34",
-		      "version": 2,
-		      "reject": {
-		        "status": true
-		      }
-		    },
-		    {
-		      "id": "bip66",
-		      "version": 3,
-		      "reject": {
-		        "status": true
-		      }
-		    },
-		    {
-		      "id": "bip65",
-		      "version": 4,
-		      "reject": {
-		        "status": true
-		      }
-		    }
-		  ],
-		  "bip9_softforks": {
-		    "csv": {
-		      "status": "active",
-		      "startTime": 0,
-		      "timeout": 999999999999,
-		      "since": 432
-		    },
-		    "segwit": {
-		      "status": "active",
-		      "startTime": 0,
-		      "timeout": 999999999999,
-		      "since": 432
-		    }
-		  }
+		  "pruneheight": 0,
+		  "automatic_pruning": false,
+		  "prune_target_size": 0,
+		  "softforks": {
+			"csv": {
+				"type": "buried|bip9|other"
+				"bip9": {
+					"status": "defined|started|lockedIn|active|failed",
+					"bit": 1,
+					"start_time": 0,
+					"timeout": 999999999999,
+					"since": 432
+					"statistics": {
+						"period": 2,
+						"threshold": 0,
+						"elapsed": 1,
+						"count": 10223,
+						"possible": true
+					}
+				},
+				"height": 10,
+				"active": false
+			},
+			"segwit": {
+				"type": "buried|bip9|other"
+				"bip9": {
+					"status": "defined|started|lockedIn|active|failed",
+					"bit": 1,
+					"start_time": 0,
+					"timeout": 999999999999,
+					"since": 432
+					"statistics": {
+						"period": 2,
+						"threshold": 0,
+						"elapsed": 1,
+						"count": 10223,
+						"possible": true
+					}
+				},
+				"height": 10,
+				"active": false
+			}.
+			"XXXX": {...}
+		  },
+		  "warnings" : "str"
 		}
 	*/
 	GetBlockChainInfoResponse struct {
-		Bestblockhash string `json:"bestblockhash"`
-		Bip9Softforks struct {
-			Csv struct {
-				Since     int64  `json:"since"`
-				StartTime int64  `json:"startTime"`
-				Status    string `json:"status"`
-				Timeout   int64  `json:"timeout"`
-			} `json:"csv"`
-			Segwit struct {
-				Since     int64  `json:"since"`
-				StartTime int64  `json:"startTime"`
-				Status    string `json:"status"`
-				Timeout   int64  `json:"timeout"`
-			} `json:"segwit"`
-		} `json:"bip9_softforks"`
-		Blocks     int64   `json:"blocks"`
-		Chain      string  `json:"chain"`
-		Chainwork  string  `json:"chainwork"`
-		Difficulty float64 `json:"difficulty"`
-		Headers    int64   `json:"headers"`
-		Mediantime int64   `json:"mediantime"`
-		Pruned     bool    `json:"pruned"`
-		Softforks  map[string]struct {
-			Type   string `json:"type"`
-			Active bool   `json:"active"`
-			Height int64  `json:"height"`
-			Bip9   struct {
-				Status    string `json:"status"`
-				StartTime int64  `json:"start_time"`
-				Timout    int64  `json:"timeout"`
-				Since     int64  `json:"since"`
-			} `json:"bip9"`
-		} `json:"softforks"`
+		Chain                string  `json:"chain"`
+		Blocks               int64   `json:"blocks"`
+		Headers              int64   `json:"headers"`
+		Bestblockhash        string  `json:"bestblockhash"`
+		Difficulty           float64 `json:"difficulty"`
+		Mediantime           int64   `json:"mediantime"`
 		Verificationprogress float64 `json:"verificationprogress"`
+		Initialblockdownload bool    `json:"initialblockdownload"`
+		Chainwork            string  `json:"chainwork"`
+		SizeOnDisk           int64   `json:"size_on_disk"`
+		Pruned               bool    `json:"pruned"`
+		PruneHeight          int64   `json:"pruneheight"`
+		AutomaticPruning     bool    `json:"automatic_pruning"`
+		PruneTargetSize      int64   `json:"prune_target_size"`
+		Softforks            map[string]struct {
+			Segwit struct {
+				Type string `json:"type"`
+				Bip9 struct {
+					Status     string `json:"status"`
+					Bit        int64  `json:"bit"`
+					StartTime  int64  `json:"start_time"`
+					Timout     int64  `json:"timeout"`
+					Since      int64  `json:"since"`
+					Statistics struct {
+						Period    int64 `json:"period"`
+						Threshold int64 `json:"threshold"`
+						Elapsed   int64 `json:"elapsed"`
+						Count     int64 `json:"count"`
+						Possible  bool  `json:"possible"`
+					} `json:"statistics"`
+				} `json:"bip9"`
+				Height int64 `json:"height"`
+				Active bool  `json:"active"`
+			} `json:"segwit"`
+		} `json:"softforks"`
+		Warnings string `json:"warnings"`
 	}
 )
 
@@ -170,7 +247,7 @@ func (l Log) GetData() string {
 type (
 	SendToAddressRequest struct {
 		Address       string
-		Amount        decimal.Decimal
+		Amount        Amount
 		SenderAddress string
 	}
 	SendToAddressResponse string
@@ -178,15 +255,15 @@ type (
 
 func (r *SendToAddressRequest) MarshalJSON() ([]byte, error) {
 	/*
-		1. "address"            (string, required) The qtum address to send to.
-		2. "amount"             (numeric or string, required) The amount in QTUM to send. eg 0.1
+		1. "address"            (string, required) The Kaon address to send to.
+		2. "amount"             (numeric or string, required) The amount in Kaon to send. eg 0.1
 		3. "comment"            (string, optional) A comment used to store what the transaction is for.
 		                             This is not part of the transaction, just kept in your wallet.
 		4. "comment_to"         (string, optional) A comment to store the name of the person or organization
 		                             to which you're sending the transaction. This is not part of the
 		                             transaction, just kept in your wallet.
 		5. subtractfeefromamount  (boolean, optional, default=false) The fee will be deducted from the amount being sent.
-		                             The recipient will receive less qtums than you enter in the amount field.
+		                             The recipient will receive less KAONs than you enter in the amount field.
 		6. replaceable            (boolean, optional) Allow this transaction to be replaced by a transaction with higher fees via BIP 125
 		7. conf_target            (numeric, optional) Confirmation target (in blocks)
 		8. "estimate_mode"      (string, optional, default=UNSET) The fee estimate mode, must be one of:
@@ -195,7 +272,7 @@ func (r *SendToAddressRequest) MarshalJSON() ([]byte, error) {
 		       "CONSERVATIVE"
 		9. "avoid_reuse" 	(boolean, optional, default=true) Avoid spending from dirty addresses;
 					addresses are considered dirty if they have previously been used in a transaction
-		10. "senderaddress"      (string, optional) The quantum address that will be used to send money from.
+		10. "senderaddress"      (string, optional) The Kaon address that will be used to send money from.
 		11."changeToSender"     (bool, optional, default=false) Return the change to the sender.
 	*/
 	return json.Marshal([]interface{}{
@@ -219,7 +296,7 @@ type (
 	SendToContractRequest struct {
 		ContractAddress string
 		Datahex         string
-		Amount          decimal.Decimal
+		Amount          Amount
 		GasLimit        *big.Int
 		GasPrice        string
 		SenderAddress   string
@@ -243,10 +320,10 @@ func (r *SendToContractRequest) MarshalJSON() ([]byte, error) {
 	/*
 	   1. "contractaddress" (string, required) The contract address that will receive the funds and data.
 	   2. "datahex"  (string, required) data to send.
-	   3. "amount"      (numeric or string, optional) The amount in QTUM to send. eg 0.1, default: 0
+	   3. "amount"      (numeric or string, optional) The amount in KAON to send. eg 0.1, default: 0
 	   4. gasLimit  (numeric or string, optional) gasLimit, default: 250000, max: 40000000
-	   5. gasPrice  (numeric or string, optional) gasPrice Qtum price per gas unit, default: 0.0000004, min:0.0000004
-	   6. "senderaddress" (string, optional) The quantum address that will be used as sender.
+	   5. gasPrice  (numeric or string, optional) gasPrice KAON price per gas unit, default: 0.0000004, min:0.0000004
+	   6. "senderaddress" (string, optional) The Kaon address that will be used as sender.
 	   7. "broadcast" (bool, optional, default=true) Whether to broadcast the transaction or not.
 	   8. "changeToSender" (bool, optional, default=true) Return the change to the sender.
 	*/
@@ -290,8 +367,8 @@ func (r *CreateContractRequest) MarshalJSON() ([]byte, error) {
 	/*
 		1. "bytecode"  (string, required) contract bytcode.
 		2. gasLimit  (numeric or string, optional) gasLimit, default: 2500000, max: 40000000
-		3. gasPrice  (numeric or string, optional) gasPrice QTUM price per gas unit, default: 0.0000004, min:0.0000004
-		4. "senderaddress" (string, optional) The quantum address that will be used to create the contract.
+		3. gasPrice  (numeric or string, optional) gasPrice KAON price per gas unit, default: 0.0000004, min:0.0000004
+		4. "senderaddress" (string, optional) The Kaon address that will be used to create the contract.
 		5. "broadcast" (bool, optional, default=true) Whether to broadcast the transaction or not.
 		6. "changeToSender" (bool, optional, default=true) Return the change to the sender.
 	*/
@@ -337,19 +414,19 @@ type (
 	CallContractResponse struct {
 		Address         string `json:"address"`
 		ExecutionResult struct {
-			GasUsed         int    `json:"gasUsed"`
-			Excepted        string `json:"excepted"`
-			ExceptedMessage string `json:"exceptedMessage"`
-			NewAddress      string `json:"newAddress"`
-			Output          string `json:"output"`
-			CodeDeposit     int    `json:"codeDeposit"`
-			GasRefunded     int    `json:"gasRefunded"`
-			DepositSize     int    `json:"depositSize"`
-			GasForDeposit   int    `json:"gasForDeposit"`
+			GasUsed         big.Int `json:"gasUsed"`
+			Excepted        string  `json:"excepted"`
+			ExceptedMessage string  `json:"exceptedMessage"`
+			NewAddress      string  `json:"newAddress"`
+			Output          string  `json:"output"`
+			CodeDeposit     int     `json:"codeDeposit"`
+			GasRefunded     big.Int `json:"gasRefunded"`
+			DepositSize     int     `json:"depositSize"`
+			GasForDeposit   big.Int `json:"gasForDeposit"`
 		} `json:"executionResult"`
 		TransactionReceipt struct {
 			StateRoot string        `json:"stateRoot"`
-			GasUsed   int           `json:"gasUsed"`
+			GasUsed   big.Int       `json:"gasUsed"`
 			Bloom     string        `json:"bloom"`
 			Log       []interface{} `json:"log"`
 		} `json:"transactionReceipt"`
@@ -468,23 +545,24 @@ type (
 		Vouts    []*DecodedRawTransactionOutV `json:"vout"`
 	}
 	DecodedRawTransactionInV struct {
-		TxID        string                         `json:"txid"`
-		Vout        int64                          `json:"vout"`
-		ScriptSig   DecodedRawTransactionScriptSig `json:"scriptSig"`
-		Txinwitness []string                       `json:"txinwitness"`
-		Sequence    int64                          `json:"sequence"`
+		Address            string                         `json:"address"`
+		TxID               string                         `json:"txid"`
+		Vout               int64                          `json:"vout"`
+		PreviousVoutPubkey DecodedRawTransactionScriptSig `json:"previousPubkey"`
+		ScriptSig          DecodedRawTransactionScriptSig `json:"scriptSig"`
+		Txinwitness        []string                       `json:"txinwitness"`
+		Sequence           int64                          `json:"sequence"`
 	}
 
 	DecodedRawTransactionOutV struct {
-		Value        decimal.Decimal                   `json:"value"`
-		ValueSatoshi decimal.Decimal                   `json:"valueSat"`
+		Value        Amount                            `json:"value"`
 		N            int64                             `json:"n"`
 		ScriptPubKey DecodedRawTransactionScriptPubKey `json:"scriptPubKey"`
 	}
 
 	// TODO: Make these two generic? Same struct is also present in other RPC data types
 	DecodedRawTransactionScriptSig struct {
-		Asm string `json:"asm"`
+		ASM string `json:"asm"`
 		Hex string `json:"hex"`
 	}
 
@@ -497,11 +575,11 @@ type (
 	}
 )
 
-// Calculates transaction total amount of Qtum
+// Calculates transaction total amount of KAON
 func (resp *DecodedRawTransactionResponse) CalcAmount() decimal.Decimal {
 	var amount decimal.Decimal
 	for _, out := range resp.Vouts {
-		amount = amount.Add(out.Value)
+		amount = amount.Add(out.Value.Decimal)
 	}
 	return amount
 }
@@ -511,25 +589,18 @@ type ContractInfo struct {
 	To        string
 	GasLimit  string
 	GasPrice  string
-	GasUsed   string
 	UserInput string
 }
 
 // TODO: complete
 func (resp *DecodedRawTransactionResponse) ExtractContractInfo() (_ ContractInfo, isContractTx bool, _ error) {
-	// TODO: discuss
-	// ? Can Vouts have several contracts
+	// Break if Vouts have several contracts
 
 	var info *ContractInfo
 
 	for _, vout := range resp.Vouts {
-
-		scriptAsm, err := DisasmScript(vout.ScriptPubKey.Hex)
-		if err != nil {
-			return ContractInfo{}, false, errors.WithMessage(err, "failed to disasm script")
-		}
 		var (
-			script  = strings.Split(scriptAsm, " ")
+			script  = strings.Split(vout.ScriptPubKey.ASM, " ")
 			finalOp = script[len(script)-1]
 		)
 
@@ -571,15 +642,10 @@ func (resp *DecodedRawTransactionResponse) ExtractContractInfo() (_ ContractInfo
 				}
 			}
 			info = &ContractInfo{
-				From:     createInfo.From,
-				To:       createInfo.To,
-				GasLimit: createInfo.GasLimit,
-
-				GasPrice: createInfo.GasPrice,
-
-				// TODO: researching
-				GasUsed: "0x0",
-
+				From:      createInfo.From,
+				To:        createInfo.To,
+				GasLimit:  createInfo.GasLimit,
+				GasPrice:  createInfo.GasPrice,
 				UserInput: createInfo.CallData,
 			}
 
@@ -595,8 +661,102 @@ func (resp *DecodedRawTransactionResponse) ExtractContractInfo() (_ ContractInfo
 		return *info, true, nil
 	}
 
-	return ContractInfo{}, false, nil
+	// Let's try a standard trx parsing method
+	for _, vin := range resp.Vins {
+		fromAddress := ""
+		if vin.Address == "" {
+			var (
+				script  = strings.Split(vin.PreviousVoutPubkey.ASM, " ")
+				finalOp = script[len(script)-1]
+			)
+			if finalOp != "OP_CHECKSIG" {
+				continue // We do not support non-standard money transfers
+			}
+			sender, err := ParseP2PKHReciever(script)
+			if err != nil {
+				continue
+			}
 
+			// P2Sh address(such as MUrenj2sPqEVTiNbHQ2RARiZYyTAAeKiDX) and BECH32 address (such as qc1qkt33x6hkrrlwlr6v59wptwy6zskyrjfe40y0lx)
+			// will cause ConvertKaonAddress to fall
+			// but we not support them for now
+			fromAddressIn, err := utils.ConvertKaonAddress(*sender)
+
+			if err != nil {
+				continue
+			}
+			fromAddress = fromAddressIn
+		} else {
+
+			// P2Sh address(such as MUrenj2sPqEVTiNbHQ2RARiZYyTAAeKiDX) and BECH32 address (such as qc1qkt33x6hkrrlwlr6v59wptwy6zskyrjfe40y0lx)
+			// will cause ConvertKaonAddress to fall
+			// but we not support them for now
+			fromAddressIn, err := utils.ConvertKaonAddress(vin.Address)
+
+			if err != nil {
+				continue
+			}
+			fromAddress = fromAddressIn
+		}
+
+		if int(vin.Vout) >= len(resp.Vouts) {
+			continue
+
+			// TODO: probably we still may be able to solve it in that case
+			// research
+			// return ContractInfo{
+			// 	From: fromAddress,
+			// }, false, nil
+		}
+
+		var (
+			vout     = resp.Vouts[vin.Vout]
+			reciever = ""
+		)
+		for _, address := range vout.ScriptPubKey.Addresses {
+			if address != "" {
+				// P2Sh address(such as MUrenj2sPqEVTiNbHQ2RARiZYyTAAeKiDX) and BECH32 address (such as qc1qkt33x6hkrrlwlr6v59wptwy6zskyrjfe40y0lx)
+				// will cause ConvertKaonAddress to fall
+				// but we not support them for now
+				hex, err := utils.ConvertKaonAddress(address)
+				if err == nil {
+					reciever = hex
+					break
+				}
+			}
+		}
+
+		if reciever == "" {
+			var (
+				script  = strings.Split(vout.ScriptPubKey.ASM, " ")
+				finalOp = script[len(script)-1]
+			)
+			if finalOp != "OP_CHECKSIG" {
+				continue // We do not support non-standard money transfers
+			}
+			recieverParsed, err := ParseP2PKHReciever(script)
+			if err != nil {
+				continue
+			}
+
+			// P2Sh address(such as MUrenj2sPqEVTiNbHQ2RARiZYyTAAeKiDX) and BECH32 address (such as qc1qkt33x6hkrrlwlr6v59wptwy6zskyrjfe40y0lx)
+			// will cause ConvertKaonAddress to fall
+			// but we not support them for now
+			recieverIn, err := utils.ConvertKaonAddress(*recieverParsed)
+
+			if err != nil {
+				continue
+			}
+			reciever = recieverIn
+		}
+
+		return ContractInfo{
+			From: fromAddress,
+			To:   reciever,
+		}, false, nil
+	}
+
+	return ContractInfo{}, false, nil
 }
 
 func (resp *DecodedRawTransactionResponse) IsContractCreation() bool {
@@ -608,89 +768,19 @@ func (resp *DecodedRawTransactionResponse) IsContractCreation() bool {
 	return false
 }
 
-// Get address from first OP_SENDER script operation found in Vouts, if any. Can also be used to check for presence of said op.
-// TODO: Refactor to use btcasm functionality as in func ExtractContractInfo above? Or just deprecate this func entirely, because it's only relevant for already handled contract TXs anyway?
-func (resp *DecodedRawTransactionResponse) GetOpSenderAddress() (address string, _ error) {
-	for _, vout := range resp.Vouts {
-		// OP_SENDER is only valid in scripts ending in ether OP_CREATE or OP_CALL
-		if strings.HasSuffix(vout.ScriptPubKey.ASM, "OP_CREATE") || strings.HasSuffix(vout.ScriptPubKey.ASM, "OP_CALL") {
-			var scriptChunks = strings.Split(vout.ScriptPubKey.ASM, " ")
-
-			// OP_CREATE prefixed by OP_SENDER always have this structure:
-			//
-			// 1    // address type of the pubkeyhash (public key hash)
-			// Address               // sender's pubkeyhash address
-			// {signature, pubkey}   //serialized scriptSig
-			// OP_SENDER
-			// 4                     // EVM version
-			// 100000                //gas limit
-			// 10                    //gas price
-			// 1234                  // data to be sent by the contract
-			// OP_CREATE
-			var isOpCreateWithOpSender = len(scriptChunks) == 9
-
-			// OP_CALL prefixed by OP_SENDER always have this structure:
-			//
-			// 1                     // address type of the pubkeyhash (public key hash)
-			// Address               // sender's pubkeyhash address
-			// {signature, pubkey}   // serialized scriptSig
-			// OP_SENDER
-			// 4                     // EVM version
-			// 100000                // gas limit
-			// 10                    // gas price
-			// 1234                  // data to be sent by the contract
-			// Contract Address      // contract address
-			// OP_CALL
-			var isOpCallWithOpSender = len(scriptChunks) == 10
-
-			// Note: This check isn't redundant with the initial opcode check, since both opcodes are valid without OP_SENDER prefix
-			if isOpCreateWithOpSender || isOpCallWithOpSender {
-				// Address type, only support 1 for now
-				// TODO: Instead of throeing an error, should it keep going to see if another Vout has OP_SENDER with a valid address?
-				// TODO: Is type "1" called "push data"?
-				// TODO: This should be logged according to task
-				if scriptChunks[0] != "1" {
-					return "", errors.New("OP_SENDER address if of invalid type (only type 1 is supported currently)")
-				}
-
-				// TODO: Is it necessary to check that the first three ASM entries are valid, as done in QtumJ?
-
-				// TODO: These following sanity checks are present in the QtumJ code used as reference, but will probably always pass for valid blockchain data.
-				// If Janus is stable and performance is a concern these can probably be safely removed
-				if scriptChunks[3] != "OP_SENDER" {
-					return "", errors.New("Expected opcode OP_SENDER missing or malformatted (This should probably never happen with valid blockchain data)")
-				}
-
-				if isOpCreateWithOpSender && scriptChunks[8] != "OP_CREATE" {
-					return "", errors.New("Expected opcode OP_CREATE missing or malformatted (This should probably never happen with valid blockchain data)")
-				}
-
-				if isOpCallWithOpSender && scriptChunks[9] != "OP_CALL" {
-					return "", errors.New("Expected opcode OP_CALL missing or malformatted (This should probably never happen with valid blockchain data)")
-				}
-
-				// TODO: This should already be in hex/eth format, but should we also add a hex prefix?
-				var opSenderAddress = scriptChunks[1]
-
-				return opSenderAddress, nil
-			}
-		}
-	}
-	return "", errors.New("No script with OP_SENDER found in Vouts")
-}
-
 // ========== GetTransactionOut ============= //
 type (
-	GetTransactionOutRequest struct {
-		Hash            string `json:"txid"`
-		VoutNumber      int    `json:"n"`
-		MempoolIncluded bool   `json:"include_mempool"`
-	}
+	// GetTransactionOutRequest struct {
+	// 	Hash            string `json:"txid"`
+	// 	VoutNumber      int    `json:"n"`
+	// 	MempoolIncluded bool   `json:"include_mempool"`
+	// }
+	GetTransactionOutRequest []interface{}
 	// TODO: Make ScriptPubKey into a separate struct (or use generic variant?) for ease of use?
 	GetTransactionOutResponse struct {
-		BestBlockHash    string  `json:"bestblock"`
-		ConfirmationsNum int     `json:"confirmations"`
-		Amount           float64 `json:"value"`
+		BestBlockHash    string `json:"bestblock"`
+		ConfirmationsNum int    `json:"confirmations"`
+		Amount           Amount `json:"value"`
 		ScriptPubKey     struct {
 			ASM        string   `json:"asm"`
 			Hex        string   `json:"hex"`
@@ -741,15 +831,16 @@ type (
 	   }
 	*/
 	TransactionReceipt struct {
-		BlockHash        string `json:"blockHash"`
-		BlockNumber      uint64 `json:"blockNumber"`
-		TransactionHash  string `json:"transactionHash"`
-		TransactionIndex uint64 `json:"transactionIndex"`
-		From             string `json:"from"`
+		BlockHash         string  `json:"blockHash"`
+		BlockNumber       uint64  `json:"blockNumber"`
+		TransactionHash   string  `json:"transactionHash"`
+		TransactionIndex  uint64  `json:"transactionIndex"`
+		From              string  `json:"from"`
+		To                string  `json:"to"`
+		CumulativeGasUsed big.Int `json:"cumulativeGasUsed"`
+		GasUsed           big.Int `json:"gasUsed"`
+		EffectiveGasPrice big.Int `json:"effectiveGasPrice"`
 		// NOTE: will be null for a contract creation transaction
-		To                string `json:"to"`
-		CumulativeGasUsed uint64 `json:"cumulativeGasUsed"`
-		GasUsed           uint64 `json:"gasUsed"`
 
 		// TODO: discuss
 		// 	? May be a contract transaction created by non-contract
@@ -827,6 +918,25 @@ func (r *GetBlockCountResponse) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// ========== GetGasPrice ============= //
+
+type (
+	GetGasPricetResponse struct {
+		*big.Int
+	}
+)
+
+func (r *GetGasPricetResponse) UnmarshalJSON(data []byte) error {
+	var i *big.Int
+	err := json.Unmarshal(data, &i)
+	if err != nil {
+		return err
+	}
+
+	r.Int = i
+	return nil
+}
+
 // ========== GetHashrate & GetMining ============= //
 
 type (
@@ -879,48 +989,50 @@ type (
 		Verbose bool
 	}
 	GetRawTransactionResponse struct {
-		Hex     string `json:"hex"`
-		ID      string `json:"txid"`
-		Hash    string `json:"hash"`
-		Size    int64  `json:"size"`
-		Vsize   int64  `json:"vsize"`
-		Version int64  `json:"version"`
-		Weight  int64  `json:"weight"`
+		Hex       string `json:"hex"`
+		ID        string `json:"txid"`
+		Hash      string `json:"hash"`
+		Size      int64  `json:"size"`
+		Vsize     int64  `json:"vsize"`
+		Version   int64  `json:"version"`
+		Weight    int64  `json:"weight"`
+		Generated bool   `json:"generated"`
 
-		BlockHash     string `json:"blockhash"`
-		Confirmations int64  `json:"confirmations"`
-		Time          int64  `json:"time"`
-		BlockTime     int64  `json:"blocktime"`
+		BlockHash        string `json:"blockhash"`
+		BlockIndex       int    `json:"blockindex"`
+		TransactionIndex int    `json:"index"`
+		Confirmations    int64  `json:"confirmations"`
+		Time             int64  `json:"time"`
+		BlockTime        int64  `json:"blocktime"`
 
 		OP_SENDER string `json:"OP_SENDER"`
 
 		Vins  []RawTransactionVin  `json:"vin"`
 		Vouts []RawTransactionVout `json:"vout"`
 
+		GasPrice big.Int `json:"gasPrice"`
+		Locktime int64   `json:"locktime"`
+
 		// Unused fields:
 		// - "in_active_chain"
-		// - "locktime"
 
 	}
 	RawTransactionVin struct {
-		ID            string  `json:"txid"`
-		VoutN         int64   `json:"vout"`
-		Amount        float64 `json:"value"`
-		AmountSatoshi int64   `json:"valueSat"`
-		Address       string  `json:"address"`
+		ID      string `json:"txid"`
+		VoutN   int64  `json:"vout"`
+		Amount  Amount `json:"value"`
+		Address string `json:"address"`
 		// TODO: temporary solution
 		ScriptSig DecodedRawTransactionScriptSig `json:"scriptSig"`
 
 		// Additional fields:
-		// - "scriptSig"
 		// - "sequence"
 		// - "txinwitness"
 	}
 	// TODO: Make details into a separate struct (or use generic scriptPubKey?) for ease of use?
 	RawTransactionVout struct {
-		Amount        float64                   `json:"value"`
-		AmountSatoshi int64                     `json:"valueSat"`
-		Details       RawTransactionVoutDetails `json:"scriptPubKey"`
+		Amount  Amount                    `json:"value"`
+		Details RawTransactionVoutDetails `json:"scriptPubKey"`
 
 		// Additional fields:
 		// - "n"
@@ -929,7 +1041,7 @@ type (
 	RawTransactionVoutDetails struct {
 		Address   string   `json:"address"`
 		Addresses []string `json:"addresses"`
-		Asm       string   `json:"asm"`
+		ASM       string   `json:"asm"`
 		Hex       string   `json:"hex"`
 		// ReqSigs   interface{} `json:"reqSigs"`
 		Type string `json:"type"`
@@ -955,22 +1067,76 @@ func (r *GetRawTransactionRequest) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// Calculates transaction total amount of KAON
+func (resp *GetRawTransactionResponse) CalcAmount() decimal.Decimal {
+	var amount decimal.Decimal
+	for _, out := range resp.Vouts {
+		amount = amount.Add(out.Amount.Decimal)
+	}
+	return amount
+}
+
 func (r *GetRawTransactionResponse) IsPending() bool {
 	return r.BlockHash == ""
 }
 
-func (r *GetRawTransactionResponse) GetMiningFeeInQTUM() float64 {
-	var vinsTotals float64
-	var voutsTotals float64
+func (r *GetRawTransactionResponse) GetMiningFeeInKAON() (*big.Int, error) {
+	var fee decimal.Decimal
 
-	for _, in := range r.Vins {
-		vinsTotals += in.Amount
-	}
-	for _, out := range r.Vouts {
-		voutsTotals += out.Amount
+	// when sending KAON, the first vout will be the target
+	// the second will be change from the vin, it will be returned to the same account
+	if len(r.Vouts) > 0 {
+
+		var valueIn decimal.Decimal
+		var valueOut decimal.Decimal
+
+		for _, vin := range r.Vins {
+			valueIn = vin.Amount.Add(valueIn)
+		}
+
+		for _, vout := range r.Vouts {
+			valueOut = vout.Amount.Add(valueOut)
+
+		}
+
+		if valueIn.Cmp(decimal.Zero) == 0 { // generated
+			fee = decimal.Zero
+		} else {
+
+			fee = valueIn.Sub(valueOut)
+		}
+	} else {
+		fee = decimal.Zero
 	}
 
-	return vinsTotals - voutsTotals
+	feeBigInt, errEncode := utils.ToBigInt(&fee)
+	if errEncode != nil {
+		return nil, errEncode
+	}
+
+	return feeBigInt, nil
+}
+
+// ========== GetTransactionHashByEthHash ============= //
+
+type (
+	GetTransactionHashByEthHashRequest struct {
+		TxID string
+	}
+
+	/*
+		KAON trx hash
+	*/
+	GetTransactionHashByEthHashResponse string
+)
+
+func (r GetTransactionHashByEthHashRequest) MarshalJSON() ([]byte, error) {
+	/*
+		1. "TxID"          (string, required) The transaction hash
+	*/
+	return json.Marshal([]interface{}{
+		string(r.TxID),
+	})
 }
 
 // ========== GetTransaction ============= //
@@ -1007,11 +1173,12 @@ type (
 		  }
 	*/
 	GetTransactionResponse struct {
-		Amount            decimal.Decimal      `json:"amount"`
-		Fee               decimal.Decimal      `json:"fee"`
+		Amount            Amount               `json:"amount"`
+		Fee               Amount               `json:"fee"`
 		Confirmations     int64                `json:"confirmations"`
 		BlockHash         string               `json:"blockhash"`
 		BlockIndex        int64                `json:"blockindex"`
+		TransactionIndex  int64                `json:"index"`
 		BlockTime         int64                `json:"blocktime"`
 		ID                string               `json:"txid"`
 		Time              int64                `json:"time"`
@@ -1020,22 +1187,21 @@ type (
 		Details           []*TransactionDetail `json:"details"`
 		Hex               string               `json:"hex"`
 		Generated         bool                 `json:"generated"`
+		GasPrice          big.Int              `json:"gasPrice"`
 	}
 	TransactionDetail struct {
 		// TODO: research/discuss
-		// 	! Field is deprecated
-		Account string `json:"account"`
 		Address string `json:"address"`
 		// Represents transaction direction: `send` or `receive`
-		Category string          `json:"category"`
-		Amount   decimal.Decimal `json:"amount"`
+		Category string `json:"category"`
+		Amount   Amount `json:"amount"`
 		// Comment value
 		Label string `json:"label"`
 		Vout  int64  `json:"vout"`
 		// NOTE:
 		// 	- Negative value
 		// 	- Presetned only for `send` transaction category
-		Fee decimal.Decimal `json:"fee"`
+		Fee Amount `json:"fee"`
 		// TODO: discuss
 		// 	? What's the meaning
 		//
@@ -1185,7 +1351,7 @@ type (
 					"0000000000000000000000000000000000000000000000000000000000000004": "000000000000000000000000000000000000000000000000000000000000000a"
 				},
 				"c2575a0e9e593c00f959f8c92f12db2869c3395a3b0502d05e2516446f71f85b": {
-					"0000000000000000000000000000000000000000000000000000000000000003": "0000000000000000000000007926223070547d2d15b2ef5e7383e541c338ffe9"
+					"0000000000000000000000000000000000000000000000000000000000000003": "0000000000000000000000001CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead"
 				}
 			},
 			"code": "0x..."
@@ -1193,7 +1359,7 @@ type (
 	*/
 	GetAccountInfoResponse struct {
 		Address string          `json:"address"`
-		Balance int             `json:"balance"`
+		Balance big.Int         `json:"balance"`
 		Storage json.RawMessage `json:"storage"`
 		Code    string          `json:"code"`
 	}
@@ -1216,7 +1382,7 @@ type (
 
 	/*
 		[
-			"qUbxboqjBRp96j3La8D1RYkyqx5uQbJPoW"
+			"ar2SzdHghSgeacypPn7zfDe3qfKAEwimus"
 		]
 	*/
 	GetAddressesByAccountResponse []string
@@ -1301,7 +1467,8 @@ type (
 		  "previousblockhash": "6d7d56af09383301e1bb32a97d4a5c0661d62302c06a778487d919b7115543be",
 		  "flags": "proof-of-stake",
 		  "proofhash": "15bd6006ecbab06708f705ecf68664b78b388e4d51416cdafb019d5b90239877",
-		  "modifier": "a79c00d1d570743ca8135a173d535258026d26bafbc5f3d951c3d33486b1f120"
+		  "modifier": "a79c00d1d570743ca8135a173d535258026d26bafbc5f3d951c3d33486b1f120",
+		  "gasUsed": 2698989
 		}
 	*/
 	GetBlockHeaderResponse struct {
@@ -1323,6 +1490,8 @@ type (
 		Flags             string  `json:"flags"`
 		Proofhash         string  `json:"proofhash"`
 		Modifier          string  `json:"modifier"`
+		Proposer          string  `json:"proposer"`
+		GasUsed           big.Int `json:"gasUsed"`
 	}
 )
 
@@ -1341,7 +1510,7 @@ func (r *GetBlockHeaderResponse) IsGenesisBlock() bool {
 type (
 	GetBlockRequest struct {
 		Hash      string
-		Verbosity *int
+		Verbosity bool
 	}
 
 	/*
@@ -1357,10 +1526,40 @@ type (
 		  "merkleroot": "0b5f03dc9d456c63c587cc554b70c1232449be43d1df62bc25a493b04de90334",
 		  "hashStateRoot": "3e49216e58f1ad9e6823b5095dc532f0a6cc44943d36ff4a7b1aa474e172d672",
 		  "hashUTXORoot": "130a3e712d9f8b06b83f5ebf02b27542fb682cdff3ce1af1c17b804729d88a47",
+
 		  "tx": [
 		    "3208dc44733cbfa11654ad5651305428de473ef1e61a1ec07b0c1a5f4843be91",
 		    "8fcd819194cce6a8454b2bec334d3448df4f097e9cdc36707bfd569900268950"
 		  ],
+		  ... OR
+		  "tx": [
+			{
+			"txid": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			"hash": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+			"version": 1,
+			"size": 234,
+			"vsize": 123,
+			"weight": 567,
+			"locktime": 0,
+			"vin": [
+				{
+				"coinbase": "031234567890abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+				"sequence": 4294967295
+				}
+			],
+			"vout": [
+					{
+					"value": 12.345,
+					"n": 0,
+					"scriptPubKey": ...
+					// ... additional vout transactions if available
+					}
+			],
+			// ... additional details of the transaction if available
+			}
+			// ... additional transactions in the block if available
+		  ],
+
 		  "time": 1536551888,
 		  "mediantime": 1536551728,
 		  "nonce": 0,
@@ -1376,43 +1575,370 @@ type (
 		}
 	*/
 	GetBlockResponse struct {
-		Hash              string   `json:"hash"`
-		Confirmations     int      `json:"confirmations"`
-		Strippedsize      int      `json:"strippedsize"`
-		Size              int      `json:"size"`
-		Weight            int      `json:"weight"`
-		Height            int      `json:"height"`
-		Version           int      `json:"version"`
-		VersionHex        string   `json:"versionHex"`
-		Merkleroot        string   `json:"merkleroot"`
-		HashStateRoot     string   `json:"hashStateRoot"`
-		HashUTXORoot      string   `json:"hashUTXORoot"`
-		Txs               []string `json:"tx"`
-		Time              int      `json:"time"`
-		Mediantime        int      `json:"mediantime"`
-		Nonce             int      `json:"nonce"`
-		Bits              string   `json:"bits"`
-		Difficulty        float64  `json:"difficulty"`
-		Chainwork         string   `json:"chainwork"`
-		Previousblockhash string   `json:"previousblockhash"`
-		Nextblockhash     string   `json:"nextblockhash"`
-		Flags             string   `json:"flags"`
-		Proofhash         string   `json:"proofhash"`
-		Modifier          string   `json:"modifier"`
-		Signature         string   `json:"signature"`
+		Hash              string        `json:"hash"`
+		Confirmations     int           `json:"confirmations"`
+		Strippedsize      int           `json:"strippedsize"`
+		Size              int           `json:"size"`
+		Weight            int           `json:"weight"`
+		Height            int           `json:"height"`
+		Version           int           `json:"version"`
+		VersionHex        string        `json:"versionHex"`
+		Merkleroot        string        `json:"merkleroot"`
+		HashStateRoot     string        `json:"hashStateRoot"`
+		HashUTXORoot      string        `json:"hashUTXORoot"`
+		Txs               []interface{} `json:"tx"`
+		Time              int           `json:"time"`
+		Mediantime        int           `json:"mediantime"`
+		Nonce             int           `json:"nonce"`
+		Bits              string        `json:"bits"`
+		Difficulty        float64       `json:"difficulty"`
+		Chainwork         string        `json:"chainwork"`
+		Previousblockhash string        `json:"previousblockhash"`
+		Proposer          string        `json:"Proposer"`
+		Nextblockhash     string        `json:"nextblockhash"`
+		Flags             string        `json:"flags"`
+		Proofhash         string        `json:"proofhash"`
+		Modifier          string        `json:"modifier"`
+		Signature         string        `json:"signature"`
+	}
+
+	BlockTransactionDetails struct {
+		Hex       string `json:"hex"`
+		ID        string `json:"txid"`
+		Hash      string `json:"hash"`
+		Size      int64  `json:"size"`
+		Vsize     int64  `json:"vsize"`
+		Version   int64  `json:"version"`
+		Weight    int64  `json:"weight"`
+		Generated bool   `json:"generated"`
+
+		BlockHash        string `json:"blockhash"`
+		BlockIndex       int    `json:"blockindex"`
+		TransactionIndex int    `json:"index"`
+		Confirmations    int64  `json:"confirmations"`
+		Time             int64  `json:"time"`
+		BlockTime        int64  `json:"blocktime"`
+
+		OP_SENDER string `json:"OP_SENDER"`
+
+		Vins  []BlockTransactionVin  `json:"vin"`
+		Vouts []BlockTransactionVout `json:"vout"`
+
+		GasPrice big.Int `json:"gasPrice"`
+		Locktime int64   `json:"locktime"`
+
+		// Unused fields:
+		// - "in_active_chain"
+
+	}
+
+	BlockTransactionVin struct {
+		Address            string                    `json:"address"`
+		TxID               string                    `json:"txid"`
+		Vout               int64                     `json:"vout"`
+		PreviousVoutPubkey BlockTransactionScriptSig `json:"previousPubkey"`
+		ScriptSig          BlockTransactionScriptSig `json:"scriptSig"`
+		Txinwitness        []string                  `json:"txinwitness"`
+		Sequence           int64                     `json:"sequence"`
+		Value              Amount                    `json:"value"`
+	}
+
+	BlockTransactionVout struct {
+		Value        Amount                       `json:"value"`
+		N            int64                        `json:"n"`
+		ScriptPubKey BlockTransactionScriptPubKey `json:"scriptPubKey"`
+	}
+
+	// TODO: Make these two generic? Same struct is also present in other RPC data types
+	BlockTransactionScriptSig struct {
+		ASM string `json:"asm"`
+		Hex string `json:"hex"`
+	}
+
+	BlockTransactionScriptPubKey struct {
+		ASM       string   `json:"asm"`
+		Hex       string   `json:"hex"`
+		ReqSigs   int64    `json:"reqSigs"`
+		Type      string   `json:"type"`
+		Addresses []string `json:"addresses"`
 	}
 )
 
 func (r *GetBlockRequest) MarshalJSON() ([]byte, error) {
-	verbosity := 1
-	if r.Verbosity != nil {
-		verbosity = *r.Verbosity
-	}
 
 	return json.Marshal([]interface{}{
 		r.Hash,
-		verbosity,
+		r.Verbosity,
 	})
+}
+
+func (r *BlockTransactionDetails) UnmarshalJSON(data []byte) error {
+	if string(data) == "[]" {
+		return EmptyResponseErr
+	}
+	type Response BlockTransactionDetails
+	var resp Response
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return err
+	}
+
+	*r = BlockTransactionDetails(resp)
+
+	return nil
+}
+
+func (r *BlockTransactionDetails) IsPending() bool {
+	return r.BlockHash == ""
+}
+
+func (r *BlockTransactionDetails) GetMiningFeeInKAON() (*big.Int, error) {
+	if r.Generated {
+		return big.NewInt(0), nil
+	}
+
+	var fee decimal.Decimal
+
+	// when sending KAON, the first vout will be the target
+	// the second will be change from the vin, it will be returned to the same account
+	if len(r.Vouts) > 0 {
+
+		var valueIn decimal.Decimal
+		var valueOut decimal.Decimal
+
+		for _, vin := range r.Vins {
+			valueIn = vin.Value.Add(valueIn)
+		}
+
+		for _, vout := range r.Vouts {
+			valueOut = vout.Value.Add(valueOut)
+
+		}
+		if valueIn.Cmp(decimal.Zero) == 0 { // generated
+			fee = decimal.Zero
+		} else {
+
+			fee = valueIn.Sub(valueOut)
+		}
+	} else {
+		fee = decimal.Zero
+	}
+
+	feeBigInt, errEncode := utils.ToBigInt(&fee)
+	if errEncode != nil {
+		return nil, errEncode
+	}
+
+	return feeBigInt, nil
+}
+
+// Calculates transaction total amount of KAON
+func (resp *BlockTransactionDetails) CalcAmount() decimal.Decimal {
+	var amount decimal.Decimal
+	for _, out := range resp.Vouts {
+		amount = amount.Add(out.Value.Decimal)
+	}
+	return amount
+}
+
+func (resp *BlockTransactionDetails) ExtractContractInfo() (_ ContractInfo, isContractTx bool, _ error) {
+	// Break if Vouts have several contracts
+
+	var info *ContractInfo
+
+	for _, vout := range resp.Vouts {
+		var (
+			script  = strings.Split(vout.ScriptPubKey.ASM, " ")
+			finalOp = script[len(script)-1]
+		)
+
+		switch finalOp {
+		case "OP_CALL":
+			if info != nil {
+				return ContractInfo{}, false, errors.New("Duplicate OP_CALL/OP_CREATE vouts")
+			}
+			callInfo, err := ParseCallSenderASM(script)
+			// OP_CALL with OP_SENDER has the script type "nonstandard"
+			if err != nil {
+				// Check for OP_CALL without OP_SENDER
+				callInfo, err = ParseCallASM(script)
+				if err != nil {
+					return ContractInfo{}, false, errors.WithMessage(err, "couldn't parse call sender ASM")
+				}
+			}
+			info = &ContractInfo{
+				From:      callInfo.From,
+				To:        callInfo.To,
+				GasLimit:  callInfo.GasLimit,
+				GasPrice:  callInfo.GasPrice,
+				UserInput: callInfo.CallData,
+			}
+
+			return *info, true, nil
+
+		case "OP_CREATE":
+			if info != nil {
+				return ContractInfo{}, false, errors.New("Duplicate OP_CALL/OP_CREATE vouts")
+			}
+			// OP_CALL with OP_SENDER has the script type "create_sender"
+			createInfo, err := ParseCreateSenderASM(script)
+			if err != nil {
+				// Check for OP_CREATE without OP_SENDER
+				createInfo, err = ParseCreateASM(script)
+				if err != nil {
+					return ContractInfo{}, false, errors.WithMessage(err, "couldn't parse create sender ASM")
+				}
+			}
+			info = &ContractInfo{
+				From:      createInfo.From,
+				To:        createInfo.To,
+				GasLimit:  createInfo.GasLimit,
+				GasPrice:  createInfo.GasPrice,
+				UserInput: createInfo.CallData,
+			}
+
+			return *info, true, nil
+
+		case "OP_SPEND":
+			// TODO: complete
+			return ContractInfo{}, true, errors.New("OP_SPEND contract parsing partially implemented")
+
+		case "OP_CHECKSIG":
+			if !resp.Generated { // generated trxes does not have valuable vins data so process what do we have
+				continue
+			}
+
+			if vout.ScriptPubKey.Type != "pubkey" && vout.ScriptPubKey.Type != "pubkeyhash" {
+				continue // do not support other types
+			}
+
+			var (
+				reciever = ""
+			)
+			for _, address := range vout.ScriptPubKey.Addresses {
+				if address != "" {
+					// P2Sh address(such as MUrenj2sPqEVTiNbHQ2RARiZYyTAAeKiDX) and BECH32 address (such as qc1qkt33x6hkrrlwlr6v59wptwy6zskyrjfe40y0lx)
+					// will cause ConvertKaonAddress to fall
+					// but we not support them for now
+					hex, err := utils.ConvertKaonAddress(address)
+					if err == nil {
+						reciever = hex
+						break
+					}
+				}
+			}
+
+			return ContractInfo{
+				From: "",
+				To:   reciever,
+			}, false, nil
+		}
+
+	}
+
+	if info != nil {
+		return *info, true, nil
+	}
+
+	if resp.Generated {
+		return ContractInfo{}, false, nil
+	}
+
+	// Let's try a standard trx parsing method
+	for i, vin := range resp.Vins {
+		fromAddress := ""
+		if vin.Address == "" {
+			var (
+				script  = strings.Split(vin.PreviousVoutPubkey.ASM, " ")
+				finalOp = script[len(script)-1]
+			)
+			if finalOp != "OP_CHECKSIG" {
+				continue // We do not support non-standard money transfers
+			}
+			sender, err := ParseP2PKHReciever(script)
+			if err != nil {
+				continue
+			}
+
+			// P2Sh address(such as MUrenj2sPqEVTiNbHQ2RARiZYyTAAeKiDX) and BECH32 address (such as qc1qkt33x6hkrrlwlr6v59wptwy6zskyrjfe40y0lx)
+			// will cause ConvertKaonAddress to fall
+			// but we not support them for now
+			fromAddressIn, err := utils.ConvertKaonAddress(*sender)
+
+			if err != nil {
+				continue
+			}
+			fromAddress = fromAddressIn
+		} else {
+
+			// P2Sh address(such as MUrenj2sPqEVTiNbHQ2RARiZYyTAAeKiDX) and BECH32 address (such as qc1qkt33x6hkrrlwlr6v59wptwy6zskyrjfe40y0lx)
+			// will cause ConvertKaonAddress to fall
+			// but we not support them for now
+			fromAddressIn, err := utils.ConvertKaonAddress(vin.Address)
+
+			if err != nil {
+				continue
+			}
+			fromAddress = fromAddressIn
+		}
+
+		if int(vin.Vout) >= len(resp.Vouts) {
+			continue
+
+			// TODO: probably we still may be able to solve it in that case
+			// research
+			// return ContractInfo{
+			// 	From: fromAddress,
+			// }, false, nil
+		}
+
+		var (
+			vout     = resp.Vouts[i]
+			reciever = ""
+		)
+		for _, address := range vout.ScriptPubKey.Addresses {
+			if address != "" {
+				// P2Sh address(such as MUrenj2sPqEVTiNbHQ2RARiZYyTAAeKiDX) and BECH32 address (such as qc1qkt33x6hkrrlwlr6v59wptwy6zskyrjfe40y0lx)
+				// will cause ConvertKaonAddress to fall
+				// but we not support them for now
+				hex, err := utils.ConvertKaonAddress(address)
+				if err == nil {
+					reciever = hex
+					break
+				}
+			}
+		}
+
+		if reciever == "" {
+			var (
+				script  = strings.Split(vout.ScriptPubKey.ASM, " ")
+				finalOp = script[len(script)-1]
+			)
+			if finalOp != "OP_CHECKSIG" {
+				continue // We do not support non-standard money transfers
+			}
+			recieverParsed, err := ParseP2PKHReciever(script)
+			if err != nil {
+				continue
+			}
+
+			// P2Sh address(such as MUrenj2sPqEVTiNbHQ2RARiZYyTAAeKiDX) and BECH32 address (such as qc1qkt33x6hkrrlwlr6v59wptwy6zskyrjfe40y0lx)
+			// will cause ConvertKaonAddress to fall
+			// but we not support them for now
+			recieverIn, err := utils.ConvertKaonAddress(*recieverParsed)
+
+			if err != nil {
+				continue
+			}
+			reciever = recieverIn
+		}
+
+		return ContractInfo{
+			From: fromAddress,
+			To:   reciever,
+		}, false, nil
+	}
+
+	return ContractInfo{}, false, nil
 }
 
 // ========CreateRawTransaction=========//
@@ -1434,7 +1960,7 @@ type (
 		                                      accepted as second parameter.
 		     [
 		       {                              (json object)
-		         "address": amount,           (numeric or string, required) A key-value pair. The key (string) is the qtum address, the value (float or string) is the amount in QTUM
+		         "address": amount,           (numeric or string, required) A key-value pair. The key (string) is the Kaon address, the value (float or string) is the amount in KAON
 		       },
 		       {                              (json object)
 		         "data": "hex",               (string, required) A key-value pair. The key must be "data", the value is hex-encoded data
@@ -1442,16 +1968,16 @@ type (
 		       {                              (json object) (send to contract)
 		         "contractAddress": "hex",    (string, required) Valid contract address (valid hash160 hex data)
 		         "data": "hex",               (string, required) Hex data to add in the call output
-		         "amount": amount,            (numeric or string, optional, default=0) Value in QTUM to send with the call, should be a valid amount, default 0
+		         "amount": amount,            (numeric or string, optional, default=0) Value in KAON to send with the call, should be a valid amount, default 0
 		         "gasLimit": n,               (numeric) The gas limit for the transaction
 		         "gasPrice": n,               (numeric) The gas price for the transaction
-		         "senderaddress": "hex",      (string) The qtum address that will be used to create the contract.
+		         "senderaddress": "hex",      (string) The Kaon address that will be used to create the contract.
 		       },
 		       {                              (json object) (create contract)
 		         "bytecode": "hex",           (string, required) contract bytcode.
 		         "gasLimit": n,               (numeric) The gas limit for the transaction
 		         "gasPrice": n,               (numeric) The gas price for the transaction
-		         "senderaddress": "hex",      (string) The qtum address that will be used to create the contract.
+		         "senderaddress": "hex",      (string) The Kaon address that will be used to create the contract.
 		       },
 		       ...
 		     ]
@@ -1499,28 +2025,6 @@ type (
 	}
 )
 
-// ======== sendrawtransaction ========= //
-
-type (
-	// Presents hexed string of a raw transcation
-	SendRawTransactionRequest [1]string
-	// Presents hexed string of a transaction hash
-	SendRawTransactionResponse struct {
-		Result string `json:"result"`
-	}
-)
-
-func (r *SendRawTransactionResponse) UnmarshalJSON(data []byte) error {
-	var result string
-	err := json.Unmarshal(data, &result)
-	if err != nil {
-		return err
-	}
-
-	r.Result = result
-	return nil
-}
-
 // ========== GetAddressUTXOs ============= //
 
 type (
@@ -1528,8 +2032,8 @@ type (
 		Arguments:
 		1. Input params              (json object, required) Json object
 			{
-			"addresses": [        (json array, required) The qtum addresses
-				"address",          (string) The qtum address
+			"addresses": [        (json array, required) The Kaon addresses
+				"address",          (string) The Kaon address
 				...
 			],
 			"chainInfo": bool,    (boolean, optional) Include chain info with results
@@ -1551,13 +2055,13 @@ type (
 	}
 
 	UTXO struct {
-		Address     string          `json:"address"`
-		TXID        string          `json:"txid"`
-		OutputIndex uint            `json:"outputIndex"`
-		Script      string          `json:"script"`
-		Satoshis    decimal.Decimal `json:"satoshis"`
-		Height      *big.Int        `json:"height"`
-		IsStake     bool            `json:"isStake"`
+		Address     string   `json:"address"`
+		TXID        string   `json:"txid"`
+		OutputIndex uint     `json:"outputIndex"`
+		Script      string   `json:"script"`
+		Satoshis    Amount   `json:"satoshis"`
+		Height      *big.Int `json:"height"`
+		IsStake     bool     `json:"isStake"`
 	}
 
 	GetAddressUTXOsResponse []UTXO
@@ -1591,19 +2095,19 @@ type (
 		Arguments:
 		1. minconf          (numeric, optional, default=1) The minimum confirmations to filter
 		2. maxconf          (numeric, optional, default=9999999) The maximum confirmations to filter
-		3. "addresses"      (string) A json array of qtum addresses to filter
+		3. "addresses"      (string) A json array of Kaon addresses to filter
 		    [
-		      "address"     (string) qtum address
+		      "address"     (string) Kaon address
 		      ,...
 		    ]
 		4. include_unsafe (bool, optional, default=true) Include outputs that are not safe to spend
 		                  See description of "safe" attribute below.
 		5. query_options    (json, optional) JSON with query options
 		    {
-		      "minimumAmount"    (numeric or string, default=0) Minimum value of each UTXO in QTUM
-		      "maximumAmount"    (numeric or string, default=unlimited) Maximum value of each UTXO in QTUM
+		      "minimumAmount"    (numeric or string, default=0) Minimum value of each UTXO in KAON
+		      "maximumAmount"    (numeric or string, default=unlimited) Maximum value of each UTXO in KAON
 		      "maximumCount"     (numeric or string, default=unlimited) Maximum number of UTXOs
-		      "minimumSumAmount" (numeric or string, default=unlimited) Minimum sum value of all UTXOs in QTUM
+		      "minimumSumAmount" (numeric or string, default=unlimited) Minimum sum value of all UTXOs in KAON
 		    }
 	*/
 	ListUnspentRequest struct {
@@ -1614,9 +2118,9 @@ type (
 	}
 	ListUnspentQueryOptions struct {
 		// Applies to each UTXO
-		MinAmount decimal.Decimal
+		MinAmount Amount
 		// Applies to each UTXO
-		MaxAmount      decimal.Decimal
+		MaxAmount      Amount
 		MaxNumToReturn int
 		// Returns only those UTXOs, which total amount
 		// is greater than or equal `MinSumAmount`
@@ -1624,7 +2128,7 @@ type (
 		// NOTE: it doesn't consider amount of all
 		// UTXOs, that is not all UTXOs may be
 		// returned, but a limited number of UTXOs
-		MinSumAmount decimal.Decimal
+		MinSumAmount Amount
 	}
 
 	/*
@@ -1632,10 +2136,10 @@ type (
 					{
 						"txid" : "txid",          (string) the transaction id
 						"vout" : n,               (numeric) the vout value
-						"address" : "address",    (string) the qtum address
+						"address" : "address",    (string) the Kaon address
 						"account" : "account",    (string) DEPRECATED. The associated account, or "" for the default account
 						"scriptPubKey" : "key",   (string) the script key
-						"amount" : x.xxx,         (numeric) the transaction output amount in QTUM
+						"amount" : x.xxx,         (numeric) the transaction output amount in KAON
 						"confirmations" : n,      (numeric) The number of confirmations
 						"redeemScript" : n        (string) The redeemScript if scriptPubKey is P2SH
 						"spendable" : xxx,        (bool) Whether we have the private keys to spend this output
@@ -1651,7 +2155,7 @@ type (
 			{
 				"txid": "a8d97ae8bb819cd4aa98ed2ddaef4969783aee845461a9ea5a88184ad58f44fe",
 				"vout": 2,
-				"address": "qUbxboqjBRp96j3La8D1RYkyqx5uQbJPoW",
+				"address": "ar2SzdHghSgeacypPn7zfDe3qfKAEwimus",
 				"account": "",
 				"scriptPubKey": "210299d391f528b9edd07284c7e23df8415232a8ce41531cf460a390ce32b4efd112ac",
 				"amount": 15007.10682200,
@@ -1663,28 +2167,19 @@ type (
 		]
 	*/
 	ListUnspentResponse []struct {
-		Address       string          `json:"address"`
-		Txid          string          `json:"txid"`
-		Vout          uint            `json:"vout"`
-		Amount        decimal.Decimal `json:"amount"`
-		Safe          bool            `json:"safe"`
-		Spendable     bool            `json:"spendable"`
-		Solvable      bool            `json:"solvable"`
-		Label         string          `json:"label"`
-		Confirmations int             `json:"confirmations"`
-		ScriptPubKey  string          `json:"scriptPubKey"`
-		RedeemScript  string          `json:"redeemScript"`
+		Address       string `json:"address"`
+		Txid          string `json:"txid"`
+		Vout          uint   `json:"vout"`
+		Amount        Amount `json:"amount"`
+		Safe          bool   `json:"safe"`
+		Spendable     bool   `json:"spendable"`
+		Solvable      bool   `json:"solvable"`
+		Label         string `json:"label"`
+		Confirmations int    `json:"confirmations"`
+		ScriptPubKey  string `json:"scriptPubKey"`
+		RedeemScript  string `json:"redeemScript"`
 	}
 )
-
-func NewListUnspentRequest(options ListUnspentQueryOptions, addresses ...string) *ListUnspentRequest {
-	return &ListUnspentRequest{
-		MinConf:      1,
-		MaxConf:      99999999,
-		Addresses:    addresses,
-		QueryOptions: options,
-	}
-}
 
 func (r *ListUnspentRequest) MarshalJSON() ([]byte, error) {
 	params := []interface{}{
@@ -1741,9 +2236,9 @@ type (
 
 	/*
 		Arguments:
-		1. addresses       	(json array, required) The qtum addresses
+		1. addresses       	(json array, required) The Kaon addresses
 			[
-				"address",	(string) The qtum address
+				"address",	(string) The Kaon address
 				...
 			]
 		Result:
@@ -1753,19 +2248,19 @@ type (
 		}
 	*/
 	GetAddressBalanceRequest struct {
-		Addresses []string `json:"addresses"`
+		Address string
 	}
 
 	GetAddressBalanceResponse struct {
-		Balance  uint64 `json:"balance"`
-		Received uint64 `json:"received"`
-		Immature int64  `json:"immature"`
+		Balance  big.Int `json:"balance"`
+		Received big.Int `json:"received"`
+		Immature big.Int `json:"immature"`
 	}
 )
 
 func (req *GetAddressBalanceRequest) MarshalJSON() ([]byte, error) {
-	params := []map[string][]string{
-		{"addresses": req.Addresses},
+	params := []interface{}{
+		req.Address,
 	}
 	return json.Marshal(params)
 }
@@ -1856,8 +2351,8 @@ type (
 		Connections        int64                     `json:"connections"`
 		NetworkActive      bool                      `json:"networkactive"`
 		Networks           []NetworkInfoNetworkInfo  `json:"networks"`
-		RelayFee           decimal.Decimal           `json:"relayfee"`
-		IncrementalFee     decimal.Decimal           `json:"incrementalfee"`
+		RelayFee           Amount                    `json:"relayfee"`
+		IncrementalFee     Amount                    `json:"incrementalfee"`
 		LocalAddresses     []NetworkInfoLocalAddress `json:"localaddresses"`
 		Warnings           string                    `json:"warnings"`
 	}
@@ -1900,9 +2395,9 @@ type (
 		From             string `json:"from"`
 		// (does this apply to waitforlogs or only searchlogs?)
 		// NOTE: will be null for a contract creation transaction
-		To                string `json:"to"`
-		CumulativeGasUsed uint64 `json:"cumulativeGasUsed"`
-		GasUsed           uint64 `json:"gasUsed"`
+		To                string  `json:"to"`
+		CumulativeGasUsed big.Int `json:"cumulativeGasUsed"`
+		GasUsed           big.Int `json:"gasUsed"`
 
 		// (does this apply to waitforlogs or only searchlogs?)
 		// TODO: discuss -
@@ -1997,29 +2492,64 @@ type (
 	}
 )
 
-// ========= unloadwallet ======== //
+// ======== sendrawtransaction ========= //
+
 type (
-	UnloadWalletRequest  []string
-	UnloadWalletResponse struct {
-		Warning string `json:"warning"`
+	// Presents hexed string of a raw transcation
+	SendRawTransactionRequest [1]string
+
+	GeneralSendRawTransactionResponse struct {
+		// Error  *string `json:"error"`
+		// ID     string  `json:"id"`
+		Result string `json:"result"`
+
+		// It may have in the Data
+		// SendRawTransactionResponse / CreateContractResponse / CallContractResponse or SendToContractResponse
+		Data interface{} `json:"-"`
+	}
+
+	// Presents hexed string of a transaction hash
+	SendRawTransactionResponse struct {
+		Result string `json:"result"`
 	}
 )
 
-// ========= listwallets ========= //
-type (
-	ListWalletsRequest  []string
-	ListWalletsResponse []string
-)
+func (r *GeneralSendRawTransactionResponse) UnmarshalJSON(data []byte) error {
+	var err error
 
-// ======== listwalletdir ======== //
+	// Check for unique identifiers in `data` and unmarshal the specific parts
+	if strings.Contains(string(data), "txid") && strings.Contains(string(data), "address") {
+		var createContractResponse CreateContractResponse
+		err = json.Unmarshal(data, &createContractResponse)
+		if err != nil {
+			return err
+		}
+		r.Data = createContractResponse
+	} else if strings.Contains(string(data), "executionResult") {
+		var callContractResponse CallContractResponse
+		err = json.Unmarshal(data, &callContractResponse)
+		if err != nil {
+			return err
+		}
+		r.Data = callContractResponse
+	} else if strings.Contains(string(data), "txid") {
+		var sendToContractResponse SendToContractResponse
+		err = json.Unmarshal(data, &sendToContractResponse)
+		if err != nil {
+			return err
+		}
+		r.Data = sendToContractResponse
+	} else {
+		// SendRawTransactionResponse is a string
+		// If no unique identifier is present, assume it's SendRawTransactionResponse
+		var sendRawTransactionResponse string
+		err = json.Unmarshal(data, &sendRawTransactionResponse)
+		if err != nil {
+			return err
+		}
+		r.Result = sendRawTransactionResponse
+		r.Data = sendRawTransactionResponse
+	}
 
-type ListWalletDirWallet struct {
-	Name string `json:"name"`
+	return nil
 }
-
-type (
-	ListWalletDirRequest  []string
-	ListWalletDirResponse struct {
-		Wallets []ListWalletDirWallet `json:"wallets"`
-	}
-)

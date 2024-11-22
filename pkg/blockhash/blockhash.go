@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -25,7 +26,7 @@ type BlockHash struct {
 	ctx   context.Context
 	mutex sync.RWMutex
 
-	qtumDB    *db.QtumDB
+	kaonDB    *db.QtumDB
 	getLogger func() log.Logger
 
 	chainId      int
@@ -61,17 +62,17 @@ func NewBlockHash(ctx context.Context, getLogger func() log.Logger) (*BlockHash,
 	}, nil
 }
 
-func (bh *BlockHash) GetQtumBlockHash(ethereumBlockHash string) (*string, error) {
-	return bh.GetQtumBlockHashContext(nil, ethereumBlockHash)
+func (bh *BlockHash) GetKaonBlockHash(ethereumBlockHash string) (*string, error) {
+	return bh.GetKaonBlockHashContext(nil, ethereumBlockHash)
 }
 
-func (bh *BlockHash) GetQtumBlockHashContext(ctx context.Context, ethereumBlockHash string) (*string, error) {
-	var qtumBlockHash string
+func (bh *BlockHash) GetKaonBlockHashContext(ctx context.Context, ethereumBlockHash string) (*string, error) {
+	var kaonBlockHash string
 	bh.mutex.RLock()
-	qtumDB := bh.qtumDB
+	kaonDB := bh.kaonDB
 	bh.mutex.RUnlock()
-	if qtumDB == nil {
-		return &qtumBlockHash, ErrDatabaseNotConfigured
+	if kaonDB == nil {
+		return &kaonBlockHash, ErrDatabaseNotConfigured
 	}
 
 	bh.chainIdMutex.RLock()
@@ -87,9 +88,9 @@ func (bh *BlockHash) GetQtumBlockHashContext(ctx context.Context, ethereumBlockH
 	}
 
 	if ctx == nil {
-		return qtumDB.GetQtumHash(chainId, ethereumBlockHash)
+		return kaonDB.GetQtumHash(chainId, ethereumBlockHash)
 	} else {
-		return qtumDB.GetQtumHashContext(ctx, chainId, ethereumBlockHash)
+		return kaonDB.GetQtumHashContext(ctx, chainId, ethereumBlockHash)
 	}
 }
 
@@ -116,7 +117,7 @@ func (bh *BlockHash) Start(databaseConfig *DatabaseConfig, chainIdChan <-chan in
 	}
 
 	bh.mutex.Lock()
-	bh.qtumDB = qdb
+	bh.kaonDB = qdb
 	bh.mutex.Unlock()
 
 	go func() {
@@ -149,9 +150,20 @@ func (bh *BlockHash) Start(databaseConfig *DatabaseConfig, chainIdChan <-chan in
 		// dispatch blocks to block channel
 		// ctx, cancelFunc := context.WithCancel(context.Background())
 
-		// janus, err := url.Parse("https://janus.qiswap.com")
-		janus, _ := url.Parse("http://localhost:23889")
-		providers := []*url.URL{janus}
+		// Get PUBLIC_URL from environment variables
+		publicURL := os.Getenv("PUBLIC_URL")
+		if publicURL == "" {
+			bh.getLogger().Log("err", "PUBLIC_URL environment variable is not set.")
+		}
+
+		// Parse the URL from the environment variable
+		ethrpcgate, err := url.Parse(publicURL)
+		if err != nil {
+			bh.getLogger().Log("err", "Error parsing PUBLIC_URL", "err", err)
+		}
+
+		// Use the parsed URL
+		providers := []*url.URL{ethrpcgate}
 
 		dispatchLogger, _ := blockHashLog.GetLogger()
 
@@ -194,7 +206,7 @@ func (bh *BlockHash) Start(databaseConfig *DatabaseConfig, chainIdChan <-chan in
 			case <-done:
 				qdb.Shutdown()
 				bh.mutex.Lock()
-				bh.qtumDB = nil
+				bh.kaonDB = nil
 				bh.mutex.Unlock()
 				status = 0
 			// case <-sigs:

@@ -4,23 +4,23 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
 )
 
-type ProxyQTUMGenerateToAddress struct {
-	*qtum.Qtum
+type ProxyKAONGenerateToAddress struct {
+	*kaon.Kaon
 }
 
-var _ ETHProxy = (*ProxyQTUMGenerateToAddress)(nil)
+var _ ETHProxy = (*ProxyKAONGenerateToAddress)(nil)
 
-func (p *ProxyQTUMGenerateToAddress) Method() string {
+func (p *ProxyKAONGenerateToAddress) Method() string {
 	return "dev_generatetoaddress"
 }
 
-func (p *ProxyQTUMGenerateToAddress) Request(req *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyKAONGenerateToAddress) Request(req *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	if !p.CanGenerate() {
 		return nil, eth.NewInvalidRequestError("Can only generate on regtest")
 	}
@@ -38,7 +38,7 @@ func (p *ProxyQTUMGenerateToAddress) Request(req *eth.JSONRPCRequest, c echo.Con
 	return p.request(params)
 }
 
-func (p *ProxyQTUMGenerateToAddress) request(params []interface{}) (*[]string, eth.JSONRPCError) {
+func (p *ProxyKAONGenerateToAddress) request(params []interface{}) (*[]string, *eth.JSONRPCError) {
 	blocks := params[0]
 	generateTo, ok := params[1].(string)
 	if !ok {
@@ -71,7 +71,7 @@ func (p *ProxyQTUMGenerateToAddress) request(params []interface{}) (*[]string, e
 	}
 
 	var response []string
-	err = p.Client.Request(qtum.MethodGenerateToAddress, []interface{}{blocksInteger, base58Address}, &response)
+	err = p.Client.Request(kaon.MethodGenerateToAddress, []interface{}{blocksInteger, base58Address}, &response)
 	if err != nil {
 		return nil, eth.NewInvalidRequestError(err.Error())
 	}

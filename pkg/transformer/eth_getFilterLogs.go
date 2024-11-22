@@ -4,8 +4,8 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
 	"github.com/labstack/echo"
-	"github.com/qtumproject/janus/pkg/eth"
 )
 
 // ProxyETHGetFilterLogs implements ETHProxy
@@ -17,7 +17,7 @@ func (p *ProxyETHGetFilterLogs) Method() string {
 	return "eth_getFilterLogs"
 }
 
-func (p *ProxyETHGetFilterLogs) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetFilterLogs) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 
 	filter, err := processFilter(p.ProxyETHGetFilterChanges, rawreq)
 	if err != nil {
@@ -32,18 +32,18 @@ func (p *ProxyETHGetFilterLogs) Request(rawreq *eth.JSONRPCRequest, c echo.Conte
 	}
 }
 
-func (p *ProxyETHGetFilterLogs) request(ctx context.Context, filter *eth.Filter) (qtumresp eth.GetFilterChangesResponse, err eth.JSONRPCError) {
-	qtumresp = make(eth.GetFilterChangesResponse, 0)
+func (p *ProxyETHGetFilterLogs) request(ctx context.Context, filter *eth.Filter) (kaonresp eth.GetFilterChangesResponse, err *eth.JSONRPCError) {
+	kaonresp = make(eth.GetFilterChangesResponse, 0)
 
 	_lastBlockNumber, ok := filter.Data.Load("lastBlockNumber")
 	if !ok {
-		return qtumresp, eth.NewCallbackError("Could not get lastBlockNumber")
+		return kaonresp, eth.NewCallbackError("Could not get lastBlockNumber")
 	}
 	lastBlockNumber := _lastBlockNumber.(uint64)
 
 	_toBlock, ok := filter.Data.Load("toBlock")
 	if !ok {
-		return qtumresp, eth.NewCallbackError("Could not get toBlock")
+		return kaonresp, eth.NewCallbackError("Could not get toBlock")
 	}
 	toBlock := _toBlock.(uint64)
 

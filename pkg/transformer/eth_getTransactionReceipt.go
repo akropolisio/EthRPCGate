@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/kaonone/eth-rpc-gate/pkg/conversion"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/labstack/echo"
 	"github.com/pkg/errors"
-	"github.com/qtumproject/janus/pkg/conversion"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
 )
 
 var STATUS_SUCCESS = "0x1"
@@ -17,14 +17,14 @@ var STATUS_FAILURE = "0x0"
 
 // ProxyETHGetTransactionReceipt implements ETHProxy
 type ProxyETHGetTransactionReceipt struct {
-	*qtum.Qtum
+	*kaon.Kaon
 }
 
 func (p *ProxyETHGetTransactionReceipt) Method() string {
 	return "eth_getTransactionReceipt"
 }
 
-func (p *ProxyETHGetTransactionReceipt) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (p *ProxyETHGetTransactionReceipt) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	var req eth.GetTransactionReceiptRequest
 	if err := unmarshalRequest(rawreq.Params, &req); err != nil {
 		// TODO: Correct error code?
@@ -36,21 +36,30 @@ func (p *ProxyETHGetTransactionReceipt) Request(rawreq *eth.JSONRPCRequest, c ec
 	}
 	var (
 		txHash  = utils.RemoveHexPrefix(string(req))
-		qtumReq = qtum.GetTransactionReceiptRequest(txHash)
+		kaonReq = kaon.GetTransactionReceiptRequest(txHash)
 	)
-	return p.request(c.Request().Context(), &qtumReq)
+	return p.request(c.Request().Context(), &kaonReq)
 }
 
-func (p *ProxyETHGetTransactionReceipt) request(ctx context.Context, req *qtum.GetTransactionReceiptRequest) (*eth.GetTransactionReceiptResponse, eth.JSONRPCError) {
-	qtumReceipt, err := p.Qtum.GetTransactionReceipt(ctx, string(*req))
+func (p *ProxyETHGetTransactionReceipt) request(ctx context.Context, req *kaon.GetTransactionReceiptRequest) (*eth.GetTransactionReceiptResponse, *eth.JSONRPCError) {
+	kaonReceipt, err := p.Kaon.GetTransactionReceipt(ctx, string(*req))
 	if err != nil {
-		ethTx, _, getRewardTransactionErr := getRewardTransactionByHash(ctx, p.Qtum, string(*req))
+		kaonHash, err := p.GetTransactionHashByEthHash(ctx, string(*req))
+
+		var getRewardTransactionErr error
+		var ethTx *eth.GetTransactionByHashResponse
+		if err == nil {
+			ethTx, _, getRewardTransactionErr = getRewardTransactionByHash(ctx, p.Kaon, string(*kaonHash))
+		} else {
+			ethTx, _, getRewardTransactionErr = getRewardTransactionByHash(ctx, p.Kaon, string(*req))
+		}
+
 		if getRewardTransactionErr != nil {
 			errCause := errors.Cause(err)
-			if errCause == qtum.EmptyResponseErr {
+			if errCause == kaon.EmptyResponseErr {
 				return nil, nil
 			}
-			p.Qtum.GetDebugLogger().Log("msg", "Transaction does not exist", "txid", string(*req))
+			p.Kaon.GetDebugLogger().Log("msg", "Transaction does not exist", "txid", string(*req))
 			return nil, eth.NewCallbackError(err.Error())
 		}
 		if ethTx == nil {
@@ -59,14 +68,13 @@ func (p *ProxyETHGetTransactionReceipt) request(ctx context.Context, req *qtum.G
 			return nil, nil
 		}
 		return &eth.GetTransactionReceiptResponse{
-			TransactionHash:  ethTx.Hash,
-			TransactionIndex: ethTx.TransactionIndex,
-			BlockHash:        ethTx.BlockHash,
-			BlockNumber:      ethTx.BlockNumber,
-			// TODO: This is higher than GasUsed in geth but does it matter?
-			CumulativeGasUsed: NonContractVMGasLimit,
-			EffectiveGasPrice: "0x0",
-			GasUsed:           NonContractVMGasLimit,
+			TransactionHash:   ethTx.Hash,
+			TransactionIndex:  ethTx.TransactionIndex,
+			BlockHash:         ethTx.BlockHash,
+			BlockNumber:       ethTx.BlockNumber,
+			CumulativeGasUsed: ethTx.CumulativeGas,
+			EffectiveGasPrice: ethTx.GasPrice,
+			GasUsed:           ethTx.Gas,
 			From:              ethTx.From,
 			To:                ethTx.To,
 			Logs:              []eth.Log{},
@@ -76,16 +84,16 @@ func (p *ProxyETHGetTransactionReceipt) request(ctx context.Context, req *qtum.G
 	}
 
 	ethReceipt := &eth.GetTransactionReceiptResponse{
-		TransactionHash:   utils.AddHexPrefix(qtumReceipt.TransactionHash),
-		TransactionIndex:  hexutil.EncodeUint64(qtumReceipt.TransactionIndex),
-		BlockHash:         utils.AddHexPrefix(qtumReceipt.BlockHash),
-		BlockNumber:       hexutil.EncodeUint64(qtumReceipt.BlockNumber),
-		ContractAddress:   utils.AddHexPrefixIfNotEmpty(qtumReceipt.ContractAddress),
-		CumulativeGasUsed: hexutil.EncodeUint64(qtumReceipt.CumulativeGasUsed),
-		EffectiveGasPrice: "0x0",
-		GasUsed:           hexutil.EncodeUint64(qtumReceipt.GasUsed),
-		From:              utils.AddHexPrefixIfNotEmpty(qtumReceipt.From),
-		To:                utils.AddHexPrefixIfNotEmpty(qtumReceipt.To),
+		TransactionHash:   utils.AddHexPrefix(kaonReceipt.TransactionHash),
+		TransactionIndex:  hexutil.EncodeUint64(kaonReceipt.TransactionIndex),
+		BlockHash:         utils.AddHexPrefix(kaonReceipt.BlockHash),
+		BlockNumber:       hexutil.EncodeUint64(kaonReceipt.BlockNumber),
+		ContractAddress:   utils.AddHexPrefixIfNotEmpty(kaonReceipt.ContractAddress),
+		CumulativeGasUsed: hexutil.EncodeBig(&kaonReceipt.CumulativeGasUsed),
+		EffectiveGasPrice: hexutil.EncodeBig(&kaonReceipt.EffectiveGasPrice),
+		GasUsed:           hexutil.EncodeBig(&kaonReceipt.GasUsed),
+		From:              utils.AddHexPrefixIfNotEmpty(kaonReceipt.From),
+		To:                utils.AddHexPrefixIfNotEmpty(kaonReceipt.To),
 
 		// TODO: researching
 		// ! Temporary accept this value to be always zero, as it is at eth logs
@@ -93,30 +101,36 @@ func (p *ProxyETHGetTransactionReceipt) request(ctx context.Context, req *qtum.G
 	}
 
 	status := STATUS_FAILURE
-	if qtumReceipt.Excepted == "None" {
+	if kaonReceipt.Excepted == "None" {
 		status = STATUS_SUCCESS
 	} else {
-		p.Qtum.GetDebugLogger().Log("transaction", ethReceipt.TransactionHash, "msg", "transaction excepted", "message", qtumReceipt.Excepted)
+		p.Kaon.GetDebugLogger().Log("transaction", ethReceipt.TransactionHash, "msg", "transaction excepted", "message", kaonReceipt.Excepted)
 	}
 	ethReceipt.Status = status
 
-	r := qtum.TransactionReceipt(*qtumReceipt)
+	r := kaon.TransactionReceipt(*kaonReceipt)
 	ethReceipt.Logs = conversion.ExtractETHLogsFromTransactionReceipt(&r, r.Log)
 
-	qtumTx, err := p.Qtum.GetRawTransaction(ctx, qtumReceipt.TransactionHash, false)
+	kaonTx, err := p.Kaon.GetRawTransaction(ctx, kaonReceipt.TransactionHash, false)
 	if err != nil {
 		p.GetDebugLogger().Log("msg", "couldn't get transaction", "err", err)
 		return nil, eth.NewCallbackError("couldn't get transaction")
 	}
-	decodedRawQtumTx, err := p.Qtum.DecodeRawTransaction(ctx, qtumTx.Hex)
+	decodedRawKaonTx, err := p.Kaon.DecodeRawTransaction(ctx, kaonTx.Hex)
 	if err != nil {
 		p.GetDebugLogger().Log("msg", "couldn't decode raw transaction", "err", err)
 		return nil, eth.NewCallbackError("couldn't decode raw transaction")
 	}
-	if decodedRawQtumTx.IsContractCreation() {
+	if decodedRawKaonTx.IsContractCreation() {
 		ethReceipt.To = ""
 	} else {
 		ethReceipt.ContractAddress = ""
+	}
+
+	if ethReceipt.BlockHash == "0x0000000000000000000000000000000000000000000000000000000000000000" { // nullify pending txs
+		ethReceipt.ContractAddress = ""
+		ethReceipt.BlockNumber = ""
+		ethReceipt.BlockHash = ""
 	}
 
 	// TODO: researching

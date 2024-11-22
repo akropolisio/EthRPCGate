@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/internal"
-	"github.com/qtumproject/janus/pkg/qtum"
-	"github.com/qtumproject/janus/pkg/utils"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/internal"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 )
 
 func TestGetTransactionReceiptForNonVMTransaction(t *testing.T) {
@@ -19,32 +19,32 @@ func TestGetTransactionReceiptForNonVMTransaction(t *testing.T) {
 	}
 
 	mockedClientDoer := internal.NewDoerMappedMock()
-	qtumClient, err := internal.CreateMockedClient(mockedClientDoer)
+	kaonClient, err := internal.CreateMockedClient(mockedClientDoer)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing client response
-	err = mockedClientDoer.AddResponseWithRequestID(2, qtum.MethodGetTransactionReceipt, []byte("[]"))
+	err = mockedClientDoer.AddResponseWithRequestID(2, kaon.MethodGetTransactionReceipt, []byte("[]"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	rawTransactionResponse := &qtum.GetRawTransactionResponse{
+	rawTransactionResponse := &kaon.GetRawTransactionResponse{
 		BlockHash: internal.GetTransactionByHashBlockHash,
 	}
-	err = mockedClientDoer.AddResponseWithRequestID(3, qtum.MethodGetRawTransaction, rawTransactionResponse)
+	err = mockedClientDoer.AddResponseWithRequestID(3, kaon.MethodGetRawTransaction, rawTransactionResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = mockedClientDoer.AddResponseWithRequestID(4, qtum.MethodGetBlock, internal.GetBlockResponse)
+	err = mockedClientDoer.AddResponseWithRequestID(4, kaon.MethodGetBlock, internal.GetBlockResponse)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	//preparing proxy & executing request
-	proxyEth := ProxyETHGetTransactionReceipt{qtumClient}
+	proxyEth := ProxyETHGetTransactionReceipt{kaonClient}
 	got, jsonErr := proxyEth.Request(request, internal.NewEchoContext())
 	if jsonErr != nil {
 		t.Fatal(jsonErr)
@@ -59,8 +59,8 @@ func TestGetTransactionReceiptForNonVMTransaction(t *testing.T) {
 		Logs:              []eth.Log{},
 		EffectiveGasPrice: "0x0",
 		CumulativeGasUsed: NonContractVMGasLimit,
-		To:                utils.AddHexPrefix(qtum.ZeroAddress),
-		From:              utils.AddHexPrefix(qtum.ZeroAddress),
+		To:                utils.AddHexPrefix(kaon.ZeroAddress),
+		From:              utils.AddHexPrefix(kaon.ZeroAddress),
 		LogsBloom:         eth.EmptyLogsBloom,
 		Status:            STATUS_SUCCESS,
 	}

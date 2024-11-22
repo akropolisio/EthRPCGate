@@ -2,28 +2,28 @@ package transformer
 
 import (
 	"github.com/go-kit/kit/log"
+	"github.com/kaonone/eth-rpc-gate/pkg/eth"
+	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/notifier"
 	"github.com/labstack/echo"
 	"github.com/pkg/errors"
-	"github.com/qtumproject/janus/pkg/eth"
-	"github.com/qtumproject/janus/pkg/notifier"
-	"github.com/qtumproject/janus/pkg/qtum"
 )
 
 type Transformer struct {
-	qtumClient   *qtum.Qtum
+	kaonClient   *kaon.Kaon
 	debugMode    bool
 	logger       log.Logger
 	transformers map[string]ETHProxy
 }
 
 // New creates a new Transformer
-func New(qtumClient *qtum.Qtum, proxies []ETHProxy, opts ...Option) (*Transformer, error) {
-	if qtumClient == nil {
-		return nil, errors.New("qtumClient cannot be nil")
+func New(kaonClient *kaon.Kaon, proxies []ETHProxy, opts ...Option) (*Transformer, error) {
+	if kaonClient == nil {
+		return nil, errors.New("kaonClient cannot be nil")
 	}
 
 	t := &Transformer{
-		qtumClient: qtumClient,
+		kaonClient: kaonClient,
 		logger:     log.NewNopLogger(),
 	}
 
@@ -60,7 +60,7 @@ func (t *Transformer) Register(p ETHProxy) error {
 }
 
 // Transform takes a Transformer and transforms the request from ETH request and returns the proxy request
-func (t *Transformer) Transform(req *eth.JSONRPCRequest, c echo.Context) (interface{}, eth.JSONRPCError) {
+func (t *Transformer) Transform(req *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
 	proxy, err := t.getProxy(req.Method)
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func (t *Transformer) Transform(req *eth.JSONRPCRequest, c echo.Context) (interf
 	return resp, nil
 }
 
-func (t *Transformer) getProxy(method string) (ETHProxy, eth.JSONRPCError) {
+func (t *Transformer) getProxy(method string) (ETHProxy, *eth.JSONRPCError) {
 	proxy, ok := t.transformers[method]
 	if !ok {
 		return nil, eth.NewMethodNotFoundError(method)
@@ -85,39 +85,42 @@ func (t *Transformer) IsDebugEnabled() bool {
 }
 
 // DefaultProxies are the default proxy methods made available
-func DefaultProxies(qtumRPCClient *qtum.Qtum, agent *notifier.Agent) []ETHProxy {
+func DefaultProxies(kaonRPCClient *kaon.Kaon, agent *notifier.Agent) []ETHProxy {
 	filter := eth.NewFilterSimulator()
-	getFilterChanges := &ProxyETHGetFilterChanges{Qtum: qtumRPCClient, filter: filter}
-	ethCall := &ProxyETHCall{Qtum: qtumRPCClient}
+	getFilterChanges := &ProxyETHGetFilterChanges{Kaon: kaonRPCClient, filter: filter}
+	ethCall := &ProxyETHCall{Kaon: kaonRPCClient}
 
 	ethProxies := []ETHProxy{
 		ethCall,
-		&ProxyNetListening{Qtum: qtumRPCClient},
+		&ProxyNetListening{Kaon: kaonRPCClient},
 		&ProxyETHPersonalUnlockAccount{},
-		&ProxyETHChainId{Qtum: qtumRPCClient},
-		&ProxyETHBlockNumber{Qtum: qtumRPCClient},
-		&ProxyETHHashrate{Qtum: qtumRPCClient},
-		&ProxyETHMining{Qtum: qtumRPCClient},
-		&ProxyETHNetVersion{Qtum: qtumRPCClient},
-		&ProxyETHGetTransactionByHash{Qtum: qtumRPCClient},
-		&ProxyETHGetTransactionByBlockNumberAndIndex{Qtum: qtumRPCClient},
-		&ProxyETHGetLogs{Qtum: qtumRPCClient},
-		&ProxyETHGetTransactionReceipt{Qtum: qtumRPCClient},
-		&ProxyETHSendTransaction{Qtum: qtumRPCClient},
-		&ProxyETHAccounts{Qtum: qtumRPCClient},
-		&ProxyETHGetCode{Qtum: qtumRPCClient},
+		&ProxyETHChainId{Kaon: kaonRPCClient},
+		&ProxyETHBlockNumber{Kaon: kaonRPCClient},
+		&ProxyETHHashrate{Kaon: kaonRPCClient},
+		&ProxyETHMining{Kaon: kaonRPCClient},
+		&ProxyETHNetVersion{Kaon: kaonRPCClient},
+		&ProxyETHGetTransactionByHash{Kaon: kaonRPCClient},
+		&ProxyETHGetTransactionByBlockNumberAndIndex{Kaon: kaonRPCClient},
+		&ProxyETHGetLogs{Kaon: kaonRPCClient},
+		&ProxyETHGetTransactionReceipt{Kaon: kaonRPCClient},
+		&ProxyETHSendTransaction{Kaon: kaonRPCClient},
+		&ProxyETHDebugTraceBlockByNumber{Kaon: kaonRPCClient},
+		&ProxyETHTraceBlock{Kaon: kaonRPCClient},
+		&ProxyETHDebugTraceTransaction{Kaon: kaonRPCClient},
+		&ProxyETHAccounts{Kaon: kaonRPCClient},
+		&ProxyETHGetCode{Kaon: kaonRPCClient},
 
-		&ProxyETHNewFilter{Qtum: qtumRPCClient, filter: filter},
-		&ProxyETHNewBlockFilter{Qtum: qtumRPCClient, filter: filter},
+		&ProxyETHNewFilter{Kaon: kaonRPCClient, filter: filter},
+		&ProxyETHNewBlockFilter{Kaon: kaonRPCClient, filter: filter},
 		getFilterChanges,
 		&ProxyETHGetFilterLogs{ProxyETHGetFilterChanges: getFilterChanges},
-		&ProxyETHUninstallFilter{Qtum: qtumRPCClient, filter: filter},
+		&ProxyETHUninstallFilter{Kaon: kaonRPCClient, filter: filter},
 
 		&ProxyETHEstimateGas{ProxyETHCall: ethCall},
-		&ProxyETHGetBlockByNumber{Qtum: qtumRPCClient},
-		&ProxyETHGetBlockByHash{Qtum: qtumRPCClient},
-		&ProxyETHGetBalance{Qtum: qtumRPCClient},
-		&ProxyETHGetStorageAt{Qtum: qtumRPCClient},
+		&ProxyETHGetBlockByNumber{Kaon: kaonRPCClient},
+		&ProxyETHGetBlockByHash{Kaon: kaonRPCClient},
+		&ProxyETHGetBalance{Kaon: kaonRPCClient},
+		&ProxyETHGetStorageAt{Kaon: kaonRPCClient},
 		&ETHGetCompilers{},
 		&ETHProtocolVersion{},
 		&ETHGetUncleByBlockHashAndIndex{},
@@ -125,33 +128,33 @@ func DefaultProxies(qtumRPCClient *qtum.Qtum, agent *notifier.Agent) []ETHProxy 
 		&ETHGetUncleCountByBlockNumber{},
 		&Web3ClientVersion{},
 		&Web3Sha3{},
-		&ProxyETHSign{Qtum: qtumRPCClient},
-		&ProxyETHGasPrice{Qtum: qtumRPCClient},
-		&ProxyETHTxCount{Qtum: qtumRPCClient},
-		&ProxyETHSignTransaction{Qtum: qtumRPCClient},
-		&ProxyETHSendRawTransaction{Qtum: qtumRPCClient},
+		&ProxyETHSign{Kaon: kaonRPCClient},
+		&ProxyETHGasPrice{Kaon: kaonRPCClient},
+		&ProxyETHTxCount{Kaon: kaonRPCClient},
+		&ProxyETHSignTransaction{Kaon: kaonRPCClient},
+		&ProxyETHSendRawTransaction{Kaon: kaonRPCClient},
 
-		&ETHSubscribe{Qtum: qtumRPCClient, Agent: agent},
-		&ETHUnsubscribe{Qtum: qtumRPCClient, Agent: agent},
+		&ETHSubscribe{Kaon: kaonRPCClient, Agent: agent},
+		&ETHUnsubscribe{Kaon: kaonRPCClient, Agent: agent},
 
-		&ProxyQTUMGetUTXOs{Qtum: qtumRPCClient},
-		&ProxyQTUMGenerateToAddress{Qtum: qtumRPCClient},
+		&ProxyKAONGetUTXOs{Kaon: kaonRPCClient},
+		&ProxyKAONGenerateToAddress{Kaon: kaonRPCClient},
 
-		&ProxyNetPeerCount{Qtum: qtumRPCClient},
+		&ProxyNetPeerCount{Kaon: kaonRPCClient},
 	}
 
-	permittedQtumCalls := []string{
-		qtum.MethodGetHexAddress,
-		qtum.MethodFromHexAddress,
+	permittedKaonCalls := []string{
+		kaon.MethodGetHexAddress,
+		kaon.MethodFromHexAddress,
 	}
 
-	for _, qtumMethod := range permittedQtumCalls {
+	for _, kaonMethod := range permittedKaonCalls {
 		ethProxies = append(
 			ethProxies,
-			&ProxyQTUMGenericStringArguments{
-				Qtum:   qtumRPCClient,
+			&ProxyKAONGenericStringArguments{
+				Kaon:   kaonRPCClient,
 				prefix: "dev",
-				method: qtumMethod,
+				method: kaonMethod,
 			},
 		)
 	}
