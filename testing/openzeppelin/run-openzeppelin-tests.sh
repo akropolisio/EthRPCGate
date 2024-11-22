@@ -40,8 +40,8 @@ if [ $? -ne 0 ] ; then
   echo "Docker Compose Failed"
   exit 1
 fi
-# docker logs qtum_seeded_testchain -f&
-# docker logs ci_janus_1 -f&
+# docker logs kaon_seeded_testchain -f&
+# docker logs ci_ethrpcgate_1 -f&
 docker logs ci_openzeppelin_1 -f&
 EXIT_CODE=`docker wait ci_openzeppelin_1`
 echo "Processing openzeppelin test results with exit code of:" $EXIT_CODE
@@ -61,8 +61,8 @@ EXIT_CODE=$doGithubWorkflowProcessingResult
 if [ -z ${EXIT_CODE+z} ] || [ -z ${EXIT_CODE} ] || ([ "0" != "$EXIT_CODE" ] && [ "" != "$EXIT_CODE" ]) ; then
   # TODO: is it even worth outputting the logs? they will overflow the actual results
   # these logs are so large we can't print them out into github actions
-  # docker logs qtum_seeded_testchain
-  # docker logs ci_janus_1
+  # docker logs kaon_seeded_testchain
+  # docker logs ci_ethrpcgate_1
   # docker logs ci_openzeppelin_1
   echo "Tests Failed - Exit Code: $EXIT_CODE (truffle exit code indicates how many tests failed)"
 else

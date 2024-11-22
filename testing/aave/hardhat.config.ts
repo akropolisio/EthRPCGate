@@ -47,7 +47,7 @@ const buidlerConfig: HardhatUserConfig = {
   defaultNetwork: "development",
   networks: {
     development: {
-      url: "http://127.0.0.1:23889",
+      url: "http://127.0.0.1:25996",
       gas: "auto",
       gasPrice: "auto",
       timeout: 600000
@@ -57,8 +57,8 @@ const buidlerConfig: HardhatUserConfig = {
       gas: "auto",
     },
     testnet: {
-      url: "http://hk1.s.qtum.org:23889",
-      from: "0x7926223070547d2d15b2ef5e7383e541c338ffe9",
+      url: "https://testnet.kaon.one/",
+      from: "0x1CE507204a6fC8fd6aA7e54D1481d30ACB0Dbead",
       gas: "auto",
       gasPrice: "auto"
     },

@@ -1,42 +1,42 @@
 version: "3.3"
 services:
-  janus:
-    image: qtum/janus:dev
+  ethrpcgate:
+    image: kaon/eth-rpc-gate:dev
     build:
       context: ../../
       dockerfile: ./Dockerfile
       cache_from:
         - golang:3.16-alpine
-        - qtum/janus:dev
+        - kaon/eth-rpc-gate:dev
     ports:
-      - "23889:23889"
+      - "25996:25996"
     environment:
-      - QTUM_RPC=http://qtum:testpasswd@qtum:3889
+      - KAON_RPC=http://kaon:kaonpass@kaon:51474
     volumes:
       - ../../:/src:ro
     depends_on:
-      - qtum
+      - kaon
     command: --bind 0.0.0.0 --accounts /src/myaccounts.txt --dev
-  qtum:
+  kaon:
     ports:
-      - "3889:3889"
-    image: qtum/qtum-seeded
+      - "51474:51474"
+    image: kaon/kaon-seeded
     build:
       context: ../../docker
-      dockerfile: ./qtum-seeded.Dockerfile
+      dockerfile: ./kaon-seeded.Dockerfile
       cache_from:
-        - qtum/qtum-seeded
-    container_name: qtum_seeded_testchain
-    command: qtumd -regtest -addrindex -txindex -rpcbind=0.0.0.0:3889 -rpcallowip=0.0.0.0/0 -logevents -rpcuser=qtum -rpcpassword=testpasswd -deprecatedrpc=accounts -printtoconsole
+        - kaon/kaon-seeded
+    container_name: kaon_seeded_testchain
+    command: kaond -testnet -rpcport=51474 -port=5778 -logevents -logtimestamps -printpriority -txindex -txrlpindex -daemon -server -listen -txindex -addrindex -rpcbind=0.0.0.0:51474 -rpcallowip=0.0.0.0/0 -rpcuser=kaon -rpcpassword=kaonpass -deprecatedrpc=accounts
   openzeppelin:
-    image: qtum/janus-openzeppelin
+    image: kaon/eth-rpc-gate-openzeppelin
     build:
       context: .
       dockerfile: ./openzeppelin.Dockerfile
       cache_from:
-        - qtum/janus-openzeppelin
+        - kaon/eth-rpc-gate-openzeppelin
     environment:
-      - GENERATE_TO_ADDRESS=qW28njWueNpBXYWj2KDmtFG2gbLeALeHfV
+      - GENERATE_TO_ADDRESS=azoZzNyhcbcTuytesg2dw8AY6p5pZCpZZj
     depends_on:
-      - janus
+      - ethrpcgate
     command: truffle test --network docker

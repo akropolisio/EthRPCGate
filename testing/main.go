@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"os"
 	"sort"
 
@@ -27,8 +28,8 @@ type MochaSpecReceipt struct {
 	BlockNumber       int           `json:"blockNumber,omitempty"`
 	From              string        `json:"from,omitempty"`
 	To                string        `json:"to,omitempty"`
-	CumulativeGasUsed int           `json:"cumulativeGasUsed,omitempty"`
-	GasUsed           int           `json:"gasUsed,omitempty"`
+	CumulativeGasUsed big.Int       `json:"cumulativeGasUsed,omitempty"`
+	GasUsed           big.Int       `json:"gasUsed,omitempty"`
 	Logs              []interface{} `json:"logs,omitempty"`
 	LogsBloom         string        `json:"logsBloom,omitempty"`
 	Status            bool          `json:"status,omitempty"`
