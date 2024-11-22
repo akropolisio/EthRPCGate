@@ -140,6 +140,9 @@ func DefaultProxies(kaonRPCClient *kaon.Kaon, agent *notifier.Agent) []ETHProxy 
 		&ProxyKAONGetUTXOs{Kaon: kaonRPCClient},
 		&ProxyKAONGenerateToAddress{Kaon: kaonRPCClient},
 
+		&ProxyKAONFromHexAddress{Kaon: kaonRPCClient},
+		&ProxyKAONGetHexAddress{Kaon: kaonRPCClient},
+
 		&ProxyNetPeerCount{Kaon: kaonRPCClient},
 	}
 

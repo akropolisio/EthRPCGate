@@ -182,12 +182,12 @@ Ethers is supported, please follow Kaon repository since fork of ethers with new
 ## eth-rpc-gate methods
 
 -   [kaon_getUTXOs](pkg/transformer/kaon_getUTXOs.go)
+-   [kaon_gethexaddress](https://github.com/kaonone/kaoncore/blob/master/doc/JSON-RPC-interface.md#gethexaddress) Convert Kaon base58 address to hex
+-   [kaon_fromhexaddress](https://github.com/kaonone/kaoncore/blob/master/doc/JSON-RPC-interface.md#fromhexaddress) Convert from hex to Kaon base58 address for the connected network (strip 0x prefix from address when calling this)
 
 ## Development methods
 Use these to speed up development, but don't rely on them in your dapp
 
--   [dev_gethexaddress](https://github.com/kaonone/kaoncore/blob/master/doc/JSON-RPC-interface.md#gethexaddress) Convert Kaon base58 address to hex
--   [dev_fromhexaddress](https://github.com/kaonone/kaoncore/blob/master/doc/JSON-RPC-interface.md#fromhexaddress) Convert from hex to Kaon base58 address for the connected network (strip 0x prefix from address when calling this)
 -   [dev_generatetoaddress](https://github.com/kaonone/kaoncore/blob/master/doc/JSON-RPC-interface.md#generatetoaddress) Mines blocks in regtest (accepts hex/base58 addresses)
 
 ## Health checks

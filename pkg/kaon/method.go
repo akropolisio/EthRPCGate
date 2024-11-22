@@ -24,6 +24,16 @@ func (m *Method) Base58AddressToHex(addr string) (string, error) {
 	return string(response), nil
 }
 
+func (m *Method) GetHexAddress(ctx context.Context, addr string) (string, error) {
+	var response GetHexAddressResponse
+	err := m.RequestWithContext(ctx, MethodGetHexAddress, GetHexAddressRequest(addr), &response)
+	if err != nil {
+		return "", err
+	}
+
+	return string(response), nil
+}
+
 func marshalToString(i interface{}) string {
 	b, err := json.Marshal(i)
 	result := ""
@@ -39,6 +49,19 @@ func (m *Method) FromHexAddress(addr string) (string, error) {
 
 	var response FromHexAddressResponse
 	err := m.RequestWithContext(nil, MethodFromHexAddress, FromHexAddressRequest(addr), &response)
+	if err != nil {
+		if m.IsDebugEnabled() {
+			m.GetDebugLogger().Log("function", "FromHexAddress", "Address", addr, "error", err)
+		}
+		return "", err
+	}
+
+	return string(response), nil
+}
+
+func (m *Method) FromHexAddressWithContext(ctx context.Context, addr string) (string, error) {
+	var response FromHexAddressResponse
+	err := m.RequestWithContext(ctx, MethodFromHexAddress, FromHexAddressRequest(addr), &response)
 	if err != nil {
 		if m.IsDebugEnabled() {
 			m.GetDebugLogger().Log("function", "FromHexAddress", "Address", addr, "error", err)
@@ -225,7 +248,7 @@ func (m *Method) GetGasPrice(ctx context.Context) (result *big.Int, err error) {
 	return result, nil
 }
 
-// hard coded 0x1 due to the unique nature of Kaons UTXO system, might
+// TODO: fixme, remove hardcode
 func (m *Method) GetTransactionCount(ctx context.Context, address string, status string) (*big.Int, error) {
 	// eventually might work this out to see if there's any transactions pending for an address in the mempool
 	// for now just always return 1
