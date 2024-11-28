@@ -1285,7 +1285,13 @@ type (
 		Address string
 		Tag     string
 	}
+	GetTransactionCountResponse string
 )
+
+func (r *GetTransactionCountRequest) UnmarshalJSON(data []byte) error {
+	tmp := []interface{}{&r.Address, &r.Tag}
+	return json.Unmarshal(data, &tmp)
+}
 
 // ========== getstorage ============= //
 type (
