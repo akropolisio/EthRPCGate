@@ -45,7 +45,7 @@ const (
 	MethodSendRawTx                   = "sendrawtransaction"
 	MethodGetStakingInfo              = "getstakinginfo"
 	MethodGetAddressBalance           = "getaddressbalance"
-	MethodGetAddressNounce            = "getaddressnounce"
+	MethodGetAddressNonce             = "getaddressnonce"
 	MethodGetAddressUTXOs             = "getaddressutxos"
 	MethodCreateWallet                = "createwallet"
 	MethodLoadWallet                  = "loadwallet"

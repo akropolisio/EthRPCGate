@@ -249,14 +249,14 @@ func (m *Method) GetGasPrice(ctx context.Context) (result *big.Int, err error) {
 }
 
 func (m *Method) GetTransactionCount(ctx context.Context, req *GetTransactionCountRequest) (resp *GetTransactionCountResponse, err error) {
-	if err := m.RequestWithContext(ctx, MethodGetAddressNounce, req, &resp); err != nil {
+	if err := m.RequestWithContext(ctx, MethodGetAddressNonce, req, &resp); err != nil {
 		if m.IsDebugEnabled() {
 			m.GetDebugLogger().Log("function", "GetTransactionCount", "error", err)
 		}
 		return nil, err
 	}
 	if m.IsDebugEnabled() {
-		m.GetDebugLogger().Log("function", "GetTransactionCount", "request", marshalToString(req), "msg", "Successfully got getaddressnounce response")
+		m.GetDebugLogger().Log("function", "GetTransactionCount", "request", marshalToString(req), "msg", "Successfully got getaddressnonce response")
 	}
 	return
 }
