@@ -2236,7 +2236,7 @@ type (
 	/*
 		Arguments:
 		1. "address",	(string) The Kaon address
-		2. "blockNumber" (int | "latest", optional, default=null) The block number to start looking for logs. ()
+		2. "blockNumber" (int | "latest", optional, default=null) The block number to start looking for transactions. ()
 		Result: n (int) The integer of the number of transactions sent from an address
 	*/
 	GetTransactionCountRequest struct {
