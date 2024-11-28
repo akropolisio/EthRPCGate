@@ -1,11 +1,12 @@
 package transformer
 
 import (
-	"math/big"
+	"context"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/kaonone/eth-rpc-gate/pkg/eth"
 	"github.com/kaonone/eth-rpc-gate/pkg/kaon"
+	"github.com/kaonone/eth-rpc-gate/pkg/utils"
 	"github.com/labstack/echo"
 )
 
@@ -19,15 +20,35 @@ func (p *ProxyETHTxCount) Method() string {
 }
 
 func (p *ProxyETHTxCount) Request(rawreq *eth.JSONRPCRequest, c echo.Context) (interface{}, *eth.JSONRPCError) {
-	kaonresp, err := p.Kaon.GetTransactionCount(c.Request().Context(), "", "")
+	var req eth.GetTransactionCountRequest
+	if err := unmarshalRequest(rawreq.Params, &req); err != nil {
+		// TODO: Correct error code?
+		return nil, eth.NewInvalidParamsError(err.Error())
+	}
+
+	kaonAddress := utils.RemoveHexPrefix(req.Address)
+
+	return p.request(
+		c.Request().Context(),
+		&kaon.GetTransactionCountRequest{
+			Address:     kaonAddress,
+			BlockNumber: req.Tag,
+		},
+	)
+}
+
+func (p *ProxyETHTxCount) request(ctx context.Context, ethreq *kaon.GetTransactionCountRequest) (*eth.GetTransactionCountResponse, *eth.JSONRPCError) {
+	kaonresp, err := p.Kaon.GetTransactionCount(ctx, ethreq)
 	if err != nil {
 		return nil, eth.NewCallbackError(err.Error())
 	}
 
 	// kaon res -> eth res
-	return p.response(kaonresp), nil
+	return p.ToResponse(kaonresp), nil
 }
 
-func (p *ProxyETHTxCount) response(kaonresp *big.Int) string {
-	return hexutil.EncodeBig(kaonresp)
+func (p *ProxyETHTxCount) ToResponse(kaonresp *kaon.GetTransactionCountResponse) *eth.GetTransactionCountResponse {
+	hexVal := hexutil.EncodeBig(kaonresp.Int)
+	ethresp := eth.GetTransactionCountResponse(hexVal)
+	return &ethresp
 }

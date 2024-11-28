@@ -2231,6 +2231,32 @@ func (request *GetStorageRequest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(params)
 }
 
+// =======getaddressnounce ============= //
+type (
+	/*
+		Arguments:
+		1. "address",	(string) The Kaon address
+		2. "blockNumber" (int | "latest", optional, default=null) The block number to start looking for logs. ()
+		Result: n (int) The integer of the number of transactions sent from an address
+	*/
+	GetTransactionCountRequest struct {
+		Address     string
+		BlockNumber interface{} `json:"blockNumber"`
+	}
+
+	GetTransactionCountResponse struct {
+		*big.Int
+	}
+)
+
+func (request *GetTransactionCountRequest) MarshalJSON() ([]byte, error) {
+	params := []interface{}{request.Address}
+	if request.BlockNumber != nil {
+		params = append(params, request.BlockNumber)
+	}
+	return json.Marshal(params)
+}
+
 // ======== getaddressbalance ========= //
 type (
 

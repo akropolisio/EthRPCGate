@@ -248,12 +248,17 @@ func (m *Method) GetGasPrice(ctx context.Context) (result *big.Int, err error) {
 	return result, nil
 }
 
-// TODO: fixme, remove hardcode
-func (m *Method) GetTransactionCount(ctx context.Context, address string, status string) (*big.Int, error) {
-	// eventually might work this out to see if there's any transactions pending for an address in the mempool
-	// for now just always return 1
-	m.GetDebugLogger().Log("Message", "GetTransactionCount is hardcoded to one")
-	return big.NewInt(0x1), nil
+func (m *Method) GetTransactionCount(ctx context.Context, req *GetTransactionCountRequest) (resp *GetTransactionCountResponse, err error) {
+	if err := m.RequestWithContext(ctx, MethodGetAddressNounce, req, &resp); err != nil {
+		if m.IsDebugEnabled() {
+			m.GetDebugLogger().Log("function", "GetTransactionCount", "error", err)
+		}
+		return nil, err
+	}
+	if m.IsDebugEnabled() {
+		m.GetDebugLogger().Log("function", "GetTransactionCount", "request", marshalToString(req), "msg", "Successfully got getaddressnounce response")
+	}
+	return
 }
 
 func (m *Method) GetBlockHash(ctx context.Context, b *big.Int) (resp GetBlockHashResponse, err error) {
